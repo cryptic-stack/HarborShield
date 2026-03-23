@@ -80,7 +80,7 @@ It validates:
 - object upload/download
 - audit API fetch
 
-Additional phase smokes live under [`scripts/`](c:\Users\JBrown\Documents\Project\s3-platform\scripts) for quotas, worker behavior, lifecycle, malware, versioning, and copy/tagging flows.
+The [`scripts/`](c:\Users\JBrown\Documents\Project\s3-platform\scripts) directory is limited to operator, demo, packaging, and supported release-validation helpers.
 
 Release-quality verification also includes:
 

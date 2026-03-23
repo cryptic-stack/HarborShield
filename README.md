@@ -84,6 +84,12 @@ Release-quality verification also includes:
 - consolidated release-readiness gate: [`scripts/release-readiness.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-readiness.ps1)
   - default run covers Compose validation, backend tests, and frontend production build
   - optional switches add release smokes, resilience regression, and S3 compatibility regression
+- GitHub Actions fast CI: [`.github/workflows/ci.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\ci.yml)
+  - runs the default release-readiness gate on pushes to `main` and pull requests
+- GitHub Actions manual release validation: [`.github/workflows/release-validation.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release-validation.yml)
+  - workflow-dispatch only
+  - prepares `.env` from `.env.example`
+  - can run release smokes, resilience checks, and S3 regression checks on demand
 - clean-install smoke: [`scripts/release-clean-install-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-clean-install-smoke.ps1)
 - upgrade smoke with preserved volumes: [`scripts/release-upgrade-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-upgrade-smoke.ps1)
 - worker restart resilience smoke: [`scripts/release-worker-restart-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-worker-restart-smoke.ps1)

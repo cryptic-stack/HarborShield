@@ -378,3 +378,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\release-readiness.ps1 `
 ```
 
 This does not replace the written go or no-go checklist above, but it gives operators and maintainers one command that reflects the current automated gate.
+
+GitHub workflow split:
+
+- fast CI workflow: [`.github/workflows/ci.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\ci.yml)
+  - push and pull-request gate
+  - validates Compose config, backend tests, and frontend production build
+- deeper release workflow: [`.github/workflows/release-validation.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release-validation.yml)
+  - manual `workflow_dispatch` run
+  - prepares `.env` from `.env.example`
+  - can execute release smokes, resilience checks, and S3 regression suites before a release decision

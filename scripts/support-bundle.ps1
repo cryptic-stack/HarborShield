@@ -83,9 +83,13 @@ function Invoke-HttpCapture {
     Write-TextFile -Path $Path -Content $body
   } catch {
     if ($_.Exception.Response) {
-      $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
-      $body = $reader.ReadToEnd()
-      $reader.Close()
+      if ($_.Exception.Response -is [System.Net.Http.HttpResponseMessage]) {
+        $body = $_.Exception.Response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+      } else {
+        $reader = New-Object System.IO.StreamReader($_.Exception.Response.GetResponseStream())
+        $body = $reader.ReadToEnd()
+        $reader.Close()
+      }
       Write-TextFile -Path $Path -Content $body
     } else {
       Write-TextFile -Path $Path -Content ($_.Exception.Message | Out-String)

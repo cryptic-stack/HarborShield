@@ -9,6 +9,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 Set-Location $ProjectRoot
+. (Join-Path $PSScriptRoot "common.ps1")
+$curlCommand = Get-CurlCommand
+$nullDevice = Get-NullDevice
 
 function Assert-Status {
   param(
@@ -27,7 +30,7 @@ function SignedStatus {
     [string]$Url,
     [string]$AccessKey,
     [string]$SecretKey,
-    [string]$OutputFile = "NUL",
+    [string]$OutputFile = $nullDevice,
     [string[]]$ExtraArgs = @()
   )
 
@@ -38,7 +41,7 @@ function SignedStatus {
     "-X", $Method
   ) + $ExtraArgs + @($Url)
 
-  return (& curl.exe @args)
+  return (& $curlCommand @args)
 }
 
 $policyFile = $null
@@ -151,7 +154,7 @@ try {
 
   Write-Host "Validating anonymous prefix-constrained list..."
   $publicListFile = Join-Path $env:TEMP "hs-policy-cond-public-list.xml"
-  $publicList = & curl.exe -sS -o $publicListFile -w "%{http_code}" "$BaseUrl/s3/${bucket}?list-type=2&prefix=public/"
+  $publicList = & $curlCommand -sS -o $publicListFile -w "%{http_code}" "$BaseUrl/s3/${bucket}?list-type=2&prefix=public/"
   Assert-Status -Actual $publicList -Expected "200" -Message "anonymous public prefix list should succeed"
   $publicListBody = Get-Content -Path $publicListFile -Raw
   if ($publicListBody -notmatch "public/readme.txt") {
@@ -162,7 +165,7 @@ try {
   }
 
   $privateListFile = Join-Path $env:TEMP "hs-policy-cond-private-list.xml"
-  $privateList = & curl.exe -sS -o $privateListFile -w "%{http_code}" "$BaseUrl/s3/${bucket}?list-type=2&prefix=private/"
+  $privateList = & $curlCommand -sS -o $privateListFile -w "%{http_code}" "$BaseUrl/s3/${bucket}?list-type=2&prefix=private/"
   Assert-Status -Actual $privateList -Expected "401" -Message "anonymous private prefix list should be denied"
   if ((Get-Content -Path $privateListFile -Raw) -notmatch "AccessDenied") {
     throw "private prefix denial should return AccessDenied"
@@ -170,14 +173,14 @@ try {
 
   Write-Host "Validating anonymous object access..."
   $publicGetFile = Join-Path $env:TEMP "hs-policy-cond-public-get.txt"
-  $publicGet = & curl.exe -sS -o $publicGetFile -w "%{http_code}" "$BaseUrl/s3/$bucket/public/readme.txt"
+  $publicGet = & $curlCommand -sS -o $publicGetFile -w "%{http_code}" "$BaseUrl/s3/$bucket/public/readme.txt"
   Assert-Status -Actual $publicGet -Expected "200" -Message "anonymous public object get should succeed"
   if ((Get-Content -Path $publicGetFile -Raw) -ne "policy public data") {
     throw "anonymous public get returned unexpected body"
   }
 
   $privateGetFile = Join-Path $env:TEMP "hs-policy-cond-private-get.xml"
-  $privateGet = & curl.exe -sS -o $privateGetFile -w "%{http_code}" "$BaseUrl/s3/$bucket/private/secret.txt"
+  $privateGet = & $curlCommand -sS -o $privateGetFile -w "%{http_code}" "$BaseUrl/s3/$bucket/private/secret.txt"
   Assert-Status -Actual $privateGet -Expected "401" -Message "anonymous private object get should be denied"
   if ((Get-Content -Path $privateGetFile -Raw) -notmatch "AccessDenied") {
     throw "anonymous private get denial should return AccessDenied"

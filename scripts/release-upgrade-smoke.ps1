@@ -9,6 +9,8 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-Location $ProjectRoot
+. (Join-Path $PSScriptRoot "common.ps1")
+$curlCommand = Get-CurlCommand
 
 function Wait-ApiHealthy {
   param([int]$TimeoutSeconds = 300)
@@ -88,7 +90,7 @@ try {
   $payloadPath = Join-Path $env:TEMP "harborshield-upgrade-smoke.txt"
   "hello from release upgrade smoke" | Set-Content -Path $payloadPath -NoNewline
 
-  curl.exe -fsS -X PUT "$BaseUrl/s3/$BucketName/test.txt" `
+  & $curlCommand -fsS -X PUT "$BaseUrl/s3/$BucketName/test.txt" `
     -H "X-S3P-Access-Key: $($credential.accessKey)" `
     -H "X-S3P-Secret: $($credential.secretKey)" `
     -H "Content-Type: text/plain" `
@@ -97,7 +99,7 @@ try {
   $beforeSetup = Invoke-RestMethod -Uri "$BaseUrl/api/v1/setup/status" -Headers $headers2
   $beforeBuckets = Invoke-RestMethod -Uri "$BaseUrl/api/v1/buckets" -Headers $headers2
   $beforeAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit?limit=20" -Headers $headers2
-  $beforeDownloaded = curl.exe -fsS "$BaseUrl/s3/$BucketName/test.txt" `
+  $beforeDownloaded = & $curlCommand -fsS "$BaseUrl/s3/$BucketName/test.txt" `
     -H "X-S3P-Access-Key: $($credential.accessKey)" `
     -H "X-S3P-Secret: $($credential.secretKey)"
 
@@ -125,7 +127,7 @@ try {
   $afterBuckets = Invoke-RestMethod -Uri "$BaseUrl/api/v1/buckets" -Headers $postHeaders
   $afterAudit = Invoke-RestMethod -Uri "$BaseUrl/api/v1/audit?limit=20" -Headers $postHeaders
 
-  $afterDownloaded = curl.exe -fsS "$BaseUrl/s3/$BucketName/test.txt" `
+  $afterDownloaded = & $curlCommand -fsS "$BaseUrl/s3/$BucketName/test.txt" `
     -H "X-S3P-Access-Key: $($credential.accessKey)" `
     -H "X-S3P-Secret: $($credential.secretKey)"
 
@@ -143,13 +145,13 @@ try {
   }
 
   Write-Host "Validating continued writes after upgrade..."
-  curl.exe -fsS -X PUT "$BaseUrl/s3/$BucketName/post-upgrade.txt" `
+  & $curlCommand -fsS -X PUT "$BaseUrl/s3/$BucketName/post-upgrade.txt" `
     -H "X-S3P-Access-Key: $($credential.accessKey)" `
     -H "X-S3P-Secret: $($credential.secretKey)" `
     -H "Content-Type: text/plain" `
     --data-binary "@$payloadPath" | Out-Null
 
-  $postUpgradeDownloaded = curl.exe -fsS "$BaseUrl/s3/$BucketName/post-upgrade.txt" `
+  $postUpgradeDownloaded = & $curlCommand -fsS "$BaseUrl/s3/$BucketName/post-upgrade.txt" `
     -H "X-S3P-Access-Key: $($credential.accessKey)" `
     -H "X-S3P-Secret: $($credential.secretKey)"
 

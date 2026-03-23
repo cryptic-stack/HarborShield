@@ -9,6 +9,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 Set-Location $ProjectRoot
+. (Join-Path $PSScriptRoot "common.ps1")
+$curlCommand = Get-CurlCommand
+$nullDevice = Get-NullDevice
 
 function Wait-ApiHealthy {
   param([int]$TimeoutSeconds = 300)
@@ -84,7 +87,7 @@ try {
 
   $uploadPath = Join-Path $env:TEMP "harborshield-worker-restart-smoke.txt"
   "hello from worker restart smoke" | Set-Content -Path $uploadPath -NoNewline
-  $uploadStatus = curl.exe -sS -o NUL -w "%{http_code}" -X POST "$BaseUrl/api/v1/buckets/$($bucket.id)/objects/upload" -H "Authorization: Bearer $($login2.accessToken)" -F "key=restart/data.txt" -F "file=@$uploadPath;type=text/plain"
+  $uploadStatus = & $curlCommand -sS -o $nullDevice -w "%{http_code}" -X POST "$BaseUrl/api/v1/buckets/$($bucket.id)/objects/upload" -H "Authorization: Bearer $($login2.accessToken)" -F "key=restart/data.txt" -F "file=@$uploadPath;type=text/plain"
   if ($uploadStatus -ne "201") {
     throw "Unexpected admin upload status: $uploadStatus"
   }

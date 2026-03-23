@@ -10,6 +10,9 @@ param(
 $ErrorActionPreference = "Stop"
 
 Set-Location $ProjectRoot
+. (Join-Path $PSScriptRoot "common.ps1")
+$curlCommand = Get-CurlCommand
+$nullDevice = Get-NullDevice
 
 function Assert-Status {
   param(
@@ -28,7 +31,7 @@ function SignedStatus {
     [string]$Url,
     [string]$AccessKey,
     [string]$SecretKey,
-    [string]$OutputFile = "NUL",
+    [string]$OutputFile = $nullDevice,
     [string[]]$ExtraArgs = @()
   )
 
@@ -39,7 +42,7 @@ function SignedStatus {
     "-X", $Method
   ) + $ExtraArgs + @($Url)
 
-  return (& curl.exe @args)
+  return (& $curlCommand @args)
 }
 
 $v1Path = $null

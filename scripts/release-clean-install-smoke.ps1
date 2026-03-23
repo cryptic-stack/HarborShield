@@ -10,6 +10,8 @@ param(
 $ErrorActionPreference = "Stop"
 
 Set-Location $ProjectRoot
+. (Join-Path $PSScriptRoot "common.ps1")
+$curlCommand = Get-CurlCommand
 
 Write-Host "Resetting stack to clean-install state..."
 docker compose down -v --remove-orphans | Out-Host
@@ -84,14 +86,14 @@ $payloadPath = Join-Path $env:TEMP "harborshield-release-smoke.txt"
 "hello from release clean install smoke" | Set-Content -Path $payloadPath -NoNewline
 
 Write-Host "Uploading through the S3 plane..."
-curl.exe -fsS -X PUT "$BaseUrl/s3/$BucketName/test.txt" `
+& $curlCommand -fsS -X PUT "$BaseUrl/s3/$BucketName/test.txt" `
   -H "X-S3P-Access-Key: $($credential.accessKey)" `
   -H "X-S3P-Secret: $($credential.secretKey)" `
   -H "Content-Type: text/plain" `
   --data-binary "@$payloadPath" | Out-Null
 
 Write-Host "Downloading through the S3 plane..."
-$downloaded = curl.exe -fsS "$BaseUrl/s3/$BucketName/test.txt" `
+$downloaded = & $curlCommand -fsS "$BaseUrl/s3/$BucketName/test.txt" `
   -H "X-S3P-Access-Key: $($credential.accessKey)" `
   -H "X-S3P-Secret: $($credential.secretKey)"
 

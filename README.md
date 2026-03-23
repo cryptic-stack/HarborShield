@@ -62,6 +62,8 @@ Optional distributed storage is now explicitly planned through the `STORAGE_BACK
 - Architecture and storage model: [`docs/architecture.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\architecture.md)
 - S3 compatibility matrix: [`docs/s3-compatibility.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\s3-compatibility.md)
 - Broad-release quality execution backlog: [`docs/release-backlog.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-backlog.md)
+- Release blocker register: [`docs/release-blockers.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-blockers.md)
+- Current prerelease notes: [`docs/release-notes/v0.1.0-rc1.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-notes\v0.1.0-rc1.md)
 
 ## Verification
 

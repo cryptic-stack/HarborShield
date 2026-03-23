@@ -67,7 +67,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	malwareSvc := malware.NewService(pool, blobStore, malware.NewScanner(cfg.EnableClamAV, cfg.ClamAVHost, cfg.ClamAVPort), cfg.MalwareScanMode, auditSvc, eventSvc)
+	malwareSvc := malware.NewService(pool, blobStore, malware.NewScanner(cfg.EnableClamAV, cfg.ClamAVHost, cfg.ClamAVPort), cfg.MalwareScanMode, auditSvc, eventSvc, settingsSvc)
 	jobSvc := jobs.NewService(pool)
 
 	recurringJobs := []struct {

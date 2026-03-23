@@ -99,7 +99,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	malwareSvc := malware.NewService(pool, blobStore, malware.NewScanner(cfg.EnableClamAV, cfg.ClamAVHost, cfg.ClamAVPort), cfg.MalwareScanMode, auditSvc, eventSvc)
+	malwareSvc := malware.NewService(pool, blobStore, malware.NewScanner(cfg.EnableClamAV, cfg.ClamAVHost, cfg.ClamAVPort), cfg.MalwareScanMode, auditSvc, eventSvc, settingsSvc)
 	adminTokenSvc := adminapi.New(pool)
 	policySvc := policies.NewService(pool)
 	oidcSvc := oidc.New(cfg, authService, settingsSvc)

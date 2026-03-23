@@ -290,6 +290,48 @@ func Mount(r chi.Router, deps RouterDeps) {
 				middleware.WriteJSON(w, http.StatusOK, item)
 			})
 
+			r.Patch("/settings/malware", func(w http.ResponseWriter, req *http.Request) {
+				claims := middleware.ClaimsFromContext(req.Context())
+				if !authorize(w, req, deps.Authorizer, "settings.manage", "*") {
+					return
+				}
+				before, err := deps.Settings.ResolveMalwareSettings(req.Context())
+				if err != nil {
+					middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				var body settings.MalwareSettings
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil {
+					middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+					return
+				}
+				item, err := deps.Settings.UpdateMalwareSettings(req.Context(), body)
+				if err != nil {
+					middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+					return
+				}
+				_ = deps.Audit.Record(req.Context(), audit.Entry{
+					Actor:     claims.Email,
+					Action:    "settings.malware.update",
+					Resource:  "malware",
+					Outcome:   "success",
+					RequestID: req.Header.Get("X-Request-Id"),
+					Detail: map[string]any{
+						"before": map[string]any{
+							"scanMode": before.ScanMode,
+						},
+						"after": map[string]any{
+							"scanMode": item.ScanMode,
+						},
+						"changedFields": diffSettingsFields(
+							map[string]any{"scanMode": before.ScanMode},
+							map[string]any{"scanMode": item.ScanMode},
+						),
+					},
+				})
+				middleware.WriteJSON(w, http.StatusOK, item)
+			})
+
 			r.Post("/settings/oidc/clear-secret", func(w http.ResponseWriter, req *http.Request) {
 				claims := middleware.ClaimsFromContext(req.Context())
 				if !authorize(w, req, deps.Authorizer, "settings.manage", "*") {

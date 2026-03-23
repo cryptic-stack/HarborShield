@@ -97,6 +97,10 @@ type OIDCSettingsInput struct {
 	RoleMap      map[string]string `json:"roleMap"`
 }
 
+type MalwareSettings struct {
+	ScanMode string `json:"scanMode"`
+}
+
 type OIDCTestResult struct {
 	IssuerURL             string   `json:"issuerUrl"`
 	AuthorizationEndpoint string   `json:"authorizationEndpoint"`
@@ -120,6 +124,10 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	malwareSettings, err := s.ResolveMalwareSettings(ctx)
+	if err != nil {
+		return Snapshot{}, err
+	}
 	oidcSettings, err := s.ResolveOIDCSettings(ctx)
 	if err != nil {
 		return Snapshot{}, err
@@ -139,7 +147,7 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 		StorageClassPolicies:        policy.Policies,
 		StorageEncrypted:            s.cfg.StorageMasterKey != "",
 		ClamAVEnabled:               s.cfg.EnableClamAV,
-		MalwareScanMode:             s.cfg.MalwareScanMode,
+		MalwareScanMode:             malwareSettings.ScanMode,
 		AdminIPAllowlist:            append([]string(nil), s.cfg.AdminIPAllowlist...),
 		CORSOrigins:                 append([]string(nil), s.cfg.CORSOrigins...),
 		LogLevel:                    s.cfg.LogLevel,
@@ -153,6 +161,40 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 		OIDCDefaultRole:             oidcSettings.DefaultRole,
 		OIDCRoleMap:                 copyRoleMap(oidcSettings.RoleMap),
 	}, nil
+}
+
+func (s *Service) ResolveMalwareSettings(ctx context.Context) (MalwareSettings, error) {
+	if err := s.ensureMalwareSettings(ctx); err != nil {
+		return MalwareSettings{}, err
+	}
+	var scanMode string
+	if err := s.db.QueryRow(ctx, `
+		SELECT scan_mode
+		FROM cluster_malware_settings
+		WHERE singleton = TRUE
+	`).Scan(&scanMode); err != nil {
+		return MalwareSettings{}, err
+	}
+	return MalwareSettings{ScanMode: normalizeMalwareScanMode(scanMode)}, nil
+}
+
+func (s *Service) UpdateMalwareSettings(ctx context.Context, input MalwareSettings) (MalwareSettings, error) {
+	if err := s.ensureMalwareSettings(ctx); err != nil {
+		return MalwareSettings{}, err
+	}
+	scanMode := normalizeMalwareScanMode(input.ScanMode)
+	if err := validateMalwareScanMode(scanMode); err != nil {
+		return MalwareSettings{}, err
+	}
+	if _, err := s.db.Exec(ctx, `
+		UPDATE cluster_malware_settings
+		SET scan_mode = $1,
+		    updated_at = NOW()
+		WHERE singleton = TRUE
+	`, scanMode); err != nil {
+		return MalwareSettings{}, err
+	}
+	return s.ResolveMalwareSettings(ctx)
 }
 
 func (s *Service) ResolveOIDCSettings(ctx context.Context) (OIDCSettings, error) {
@@ -478,6 +520,15 @@ func (s *Service) ensureOIDCSettings(ctx context.Context) error {
 	return err
 }
 
+func (s *Service) ensureMalwareSettings(ctx context.Context) error {
+	_, err := s.db.Exec(ctx, `
+		INSERT INTO cluster_malware_settings (singleton, scan_mode)
+		VALUES (TRUE, $1)
+		ON CONFLICT (singleton) DO NOTHING
+	`, normalizeMalwareScanMode(s.cfg.MalwareScanMode))
+	return err
+}
+
 func (s *Service) ensureDeploymentSetup(ctx context.Context) error {
 	_, err := s.db.Exec(ctx, `
 		INSERT INTO deployment_setups (singleton, completed, desired_storage_backend, distributed_scope, remote_endpoints)
@@ -581,6 +632,21 @@ func normalizeRoleMap(values map[string]string) map[string]string {
 		items[key] = value
 	}
 	return items
+}
+
+func normalizeMalwareScanMode(value string) string {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		return "advisory"
+	}
+	return value
+}
+
+func validateMalwareScanMode(value string) error {
+	if value != "advisory" && value != "enforcement" {
+		return fmt.Errorf("malware scan mode must be advisory or enforcement")
+	}
+	return nil
 }
 
 func defaultOIDCRole(value string) string {

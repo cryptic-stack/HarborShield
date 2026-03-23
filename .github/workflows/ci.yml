@@ -35,6 +35,10 @@ jobs:
         working-directory: frontend
         run: npm ci
 
+      - name: Prepare CI environment file
+        shell: pwsh
+        run: Copy-Item .env.example .env -Force
+
       - name: Run release-readiness gate
         shell: pwsh
         run: ./scripts/release-readiness.ps1

@@ -12,6 +12,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $ProjectRoot
 . (Join-Path $PSScriptRoot "common.ps1")
 $curlCommand = Get-CurlCommand
+$tempDir = Get-TempDir
 
 Write-Host "Resetting stack to clean-install state..."
 docker compose down -v --remove-orphans | Out-Host
@@ -82,7 +83,7 @@ $credential = Invoke-RestMethod -Uri "$BaseUrl/api/v1/credentials" -Method Post 
   description = "release smoke credential"
 } | ConvertTo-Json -Compress)
 
-$payloadPath = Join-Path $env:TEMP "harborshield-release-smoke.txt"
+$payloadPath = Join-Path $tempDir "harborshield-release-smoke.txt"
 "hello from release clean install smoke" | Set-Content -Path $payloadPath -NoNewline
 
 Write-Host "Uploading through the S3 plane..."

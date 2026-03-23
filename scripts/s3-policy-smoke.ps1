@@ -12,6 +12,7 @@ Set-Location $ProjectRoot
 . (Join-Path $PSScriptRoot "common.ps1")
 $curlCommand = Get-CurlCommand
 $nullDevice = Get-NullDevice
+$tempDir = Get-TempDir
 
 function Assert-Status {
   param(
@@ -112,8 +113,8 @@ try {
   $putBucket = SignedStatus -Method "PUT" -Url "$BaseUrl/s3/$bucket" -AccessKey $allowed.accessKey -SecretKey $allowed.secretKey
   Assert-Status -Actual $putBucket -Expected "200" -Message "bucket create failed"
 
-  $publicFile = Join-Path $env:TEMP "hs-policy-public.txt"
-  $privateFile = Join-Path $env:TEMP "hs-policy-private.txt"
+  $publicFile = Join-Path $tempDir "hs-policy-public.txt"
+  $privateFile = Join-Path $tempDir "hs-policy-private.txt"
   Set-Content -Path $publicFile -Value "public data" -NoNewline
   Set-Content -Path $privateFile -Value "private data" -NoNewline
 
@@ -123,7 +124,7 @@ try {
   Assert-Status -Actual $putPublic -Expected "200" -Message "public object put failed"
   Assert-Status -Actual $putPrivate -Expected "200" -Message "private object put failed"
 
-  $policyFile = Join-Path $env:TEMP "hs-policy-smoke.json"
+  $policyFile = Join-Path $tempDir "hs-policy-smoke.json"
   $policy = @"
 {
   "Version": "2012-10-17",
@@ -145,26 +146,26 @@ try {
   Write-Host "Applying and reading bucket policy..."
   $putPolicy = SignedStatus -Method "PUT" -Url "$BaseUrl/s3/${bucket}?policy" -AccessKey $allowed.accessKey -SecretKey $allowed.secretKey -ExtraArgs @("--upload-file", $policyFile)
   Assert-Status -Actual $putPolicy -Expected "204" -Message "put bucket policy failed"
-  $policyReadFile = Join-Path $env:TEMP "hs-policy-smoke-read.json"
+  $policyReadFile = Join-Path $tempDir "hs-policy-smoke-read.json"
   $getPolicy = SignedStatus -Method "GET" -Url "$BaseUrl/s3/${bucket}?policy" -AccessKey $allowed.accessKey -SecretKey $allowed.secretKey -OutputFile $policyReadFile
   Assert-Status -Actual $getPolicy -Expected "200" -Message "get bucket policy failed"
 
   Write-Host "Validating signed principal-specific access..."
-  $publicGetFile = Join-Path $env:TEMP "hs-policy-public-get.txt"
+  $publicGetFile = Join-Path $tempDir "hs-policy-public-get.txt"
   $publicGet = SignedStatus -Method "GET" -Url "$BaseUrl/s3/$bucket/public/visible.txt" -AccessKey $other.accessKey -SecretKey $other.secretKey -OutputFile $publicGetFile
   Assert-Status -Actual $publicGet -Expected "200" -Message "signed public object get should succeed"
   if ((Get-Content -Path $publicGetFile -Raw) -ne "public data") {
     throw "signed public get returned unexpected body"
   }
 
-  $allowedGetFile = Join-Path $env:TEMP "hs-policy-allowed-get.txt"
+  $allowedGetFile = Join-Path $tempDir "hs-policy-allowed-get.txt"
   $allowedGet = SignedStatus -Method "GET" -Url "$BaseUrl/s3/$bucket/private/secret.txt" -AccessKey $allowed.accessKey -SecretKey $allowed.secretKey -OutputFile $allowedGetFile
   Assert-Status -Actual $allowedGet -Expected "200" -Message "allowed principal should read private object"
   if ((Get-Content -Path $allowedGetFile -Raw) -ne "private data") {
     throw "allowed private read returned unexpected body"
   }
 
-  $otherGetFile = Join-Path $env:TEMP "hs-policy-other-get.xml"
+  $otherGetFile = Join-Path $tempDir "hs-policy-other-get.xml"
   $otherGet = SignedStatus -Method "GET" -Url "$BaseUrl/s3/$bucket/private/secret.txt" -AccessKey $other.accessKey -SecretKey $other.secretKey -OutputFile $otherGetFile
   Assert-Status -Actual $otherGet -Expected "403" -Message "other principal should be denied private object access"
   if ((Get-Content -Path $otherGetFile -Raw) -notmatch "AccessDenied") {
@@ -180,7 +181,7 @@ try {
   Assert-Status -Actual $deletePublic -Expected "204" -Message "delete public object failed"
   Assert-Status -Actual $deletePrivate -Expected "204" -Message "delete private object failed"
 
-  $versionsFile = Join-Path $env:TEMP "hs-policy-versions.xml"
+  $versionsFile = Join-Path $tempDir "hs-policy-versions.xml"
   $versionsStatus = SignedStatus -Method "GET" -Url "$BaseUrl/s3/${bucket}?versions" -AccessKey $allowed.accessKey -SecretKey $allowed.secretKey -OutputFile $versionsFile
   Assert-Status -Actual $versionsStatus -Expected "200" -Message "list policy bucket versions failed"
   $versionsXml = Get-Content -Path $versionsFile -Raw
@@ -207,10 +208,10 @@ try {
 finally {
   $tempFiles = @(
     $publicFile, $privateFile, $policyFile, $policyReadFile,
-    (Join-Path $env:TEMP "hs-policy-public-get.txt"),
-    (Join-Path $env:TEMP "hs-policy-allowed-get.txt"),
-    (Join-Path $env:TEMP "hs-policy-other-get.xml"),
-    (Join-Path $env:TEMP "hs-policy-versions.xml")
+    (Join-Path $tempDir "hs-policy-public-get.txt"),
+    (Join-Path $tempDir "hs-policy-allowed-get.txt"),
+    (Join-Path $tempDir "hs-policy-other-get.xml"),
+    (Join-Path $tempDir "hs-policy-versions.xml")
   )
   foreach ($path in $tempFiles) {
     if ($path) {

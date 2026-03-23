@@ -12,6 +12,7 @@ Set-Location $ProjectRoot
 . (Join-Path $PSScriptRoot "common.ps1")
 $curlCommand = Get-CurlCommand
 $nullDevice = Get-NullDevice
+$tempDir = Get-TempDir
 
 function Wait-ApiHealthy {
   param([int]$TimeoutSeconds = 300)
@@ -85,7 +86,7 @@ try {
     name = $BucketName
   } | ConvertTo-Json -Compress)
 
-  $uploadPath = Join-Path $env:TEMP "harborshield-worker-restart-smoke.txt"
+  $uploadPath = Join-Path $tempDir "harborshield-worker-restart-smoke.txt"
   "hello from worker restart smoke" | Set-Content -Path $uploadPath -NoNewline
   $uploadStatus = & $curlCommand -sS -o $nullDevice -w "%{http_code}" -X POST "$BaseUrl/api/v1/buckets/$($bucket.id)/objects/upload" -H "Authorization: Bearer $($login2.accessToken)" -F "key=restart/data.txt" -F "file=@$uploadPath;type=text/plain"
   if ($uploadStatus -ne "201") {
@@ -127,6 +128,6 @@ try {
   Write-Host "Quota state: $($quotaState.Trim())"
 }
 finally {
-  Remove-Item -Force (Join-Path $env:TEMP "harborshield-worker-restart-smoke.txt") -ErrorAction SilentlyContinue
+  Remove-Item -Force (Join-Path $tempDir "harborshield-worker-restart-smoke.txt") -ErrorAction SilentlyContinue
   Reset-FirstRunBaseline
 }

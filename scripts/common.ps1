@@ -17,3 +17,12 @@ function Get-NullDevice {
 
   return "/dev/null"
 }
+
+function Get-TempDir {
+  $tempDir = [System.IO.Path]::GetTempPath()
+  if (-not [string]::IsNullOrWhiteSpace($tempDir)) {
+    return $tempDir
+  }
+
+  throw "A writable temporary directory could not be resolved."
+}

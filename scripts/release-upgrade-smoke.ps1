@@ -11,6 +11,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $ProjectRoot
 . (Join-Path $PSScriptRoot "common.ps1")
 $curlCommand = Get-CurlCommand
+$tempDir = Get-TempDir
 
 function Wait-ApiHealthy {
   param([int]$TimeoutSeconds = 300)
@@ -87,7 +88,7 @@ try {
     description = "release upgrade smoke credential"
   } | ConvertTo-Json -Compress)
 
-  $payloadPath = Join-Path $env:TEMP "harborshield-upgrade-smoke.txt"
+  $payloadPath = Join-Path $tempDir "harborshield-upgrade-smoke.txt"
   "hello from release upgrade smoke" | Set-Content -Path $payloadPath -NoNewline
 
   & $curlCommand -fsS -X PUT "$BaseUrl/s3/$BucketName/test.txt" `

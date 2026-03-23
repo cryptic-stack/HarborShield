@@ -13,6 +13,7 @@ Set-Location $ProjectRoot
 . (Join-Path $PSScriptRoot "common.ps1")
 $curlCommand = Get-CurlCommand
 $nullDevice = Get-NullDevice
+$tempDir = Get-TempDir
 
 function Assert-Status {
   param(
@@ -99,12 +100,12 @@ try {
     description = "s3 edge smoke credential"
   } | ConvertTo-Json -Compress)
 
-  $v1Path = Join-Path $env:TEMP "hs-edge-v1.txt"
-  $v2Path = Join-Path $env:TEMP "hs-edge-v2.txt"
-  $badPartPath = Join-Path $env:TEMP "hs-edge-bad-part.txt"
-  $part1Path = Join-Path $env:TEMP "hs-edge-part1.txt"
-  $part2Path = Join-Path $env:TEMP "hs-edge-part2.txt"
-  $versionsFile = Join-Path $env:TEMP "hs-edge-versions.xml"
+  $v1Path = Join-Path $tempDir "hs-edge-v1.txt"
+  $v2Path = Join-Path $tempDir "hs-edge-v2.txt"
+  $badPartPath = Join-Path $tempDir "hs-edge-bad-part.txt"
+  $part1Path = Join-Path $tempDir "hs-edge-part1.txt"
+  $part2Path = Join-Path $tempDir "hs-edge-part2.txt"
+  $versionsFile = Join-Path $tempDir "hs-edge-versions.xml"
 
   "version one" | Set-Content -Path $v1Path -NoNewline
   "version two" | Set-Content -Path $v2Path -NoNewline
@@ -147,7 +148,7 @@ try {
   $deleteMarkerStatus = SignedStatus -Method "DELETE" -Url "$BaseUrl/s3/$BucketName/versioned.txt?versionId=$deleteMarkerVersionId" -AccessKey $credential.accessKey -SecretKey $credential.secretKey
   Assert-Status -Actual $deleteMarkerStatus -Expected "204" -Message "delete marker removal failed"
 
-  $restoredPath = Join-Path $env:TEMP "hs-edge-restored.txt"
+  $restoredPath = Join-Path $tempDir "hs-edge-restored.txt"
   $restoredGetStatus = SignedStatus -Method "GET" -Url "$BaseUrl/s3/$BucketName/versioned.txt" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -OutputFile $restoredPath
   Assert-Status -Actual $restoredGetStatus -Expected "200" -Message "removing delete marker should restore current object"
   if ((Get-Content -Path $restoredPath -Raw) -ne "version two") {
@@ -156,7 +157,7 @@ try {
 
   $olderVersionId = @($dataVersions | Where-Object { -not $_.isLatest })[-1].versionId
   if (-not $olderVersionId) { throw "expected an older non-latest version id" }
-  $olderPath = Join-Path $env:TEMP "hs-edge-older.txt"
+  $olderPath = Join-Path $tempDir "hs-edge-older.txt"
   $olderGetStatus = SignedStatus -Method "GET" -Url "$BaseUrl/s3/$BucketName/versioned.txt?versionId=$olderVersionId" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -OutputFile $olderPath
   Assert-Status -Actual $olderGetStatus -Expected "200" -Message "older version get failed"
   if ((Get-Content -Path $olderPath -Raw) -ne "version one") {
@@ -164,7 +165,7 @@ try {
   }
 
   Write-Host "Validating multipart failure cases..."
-  $initPath = Join-Path $env:TEMP "hs-edge-initiate.xml"
+  $initPath = Join-Path $tempDir "hs-edge-initiate.xml"
   $initStatus = SignedStatus -Method "POST" -Url "$BaseUrl/s3/$BucketName/multi.txt?uploads" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -OutputFile $initPath
   Assert-Status -Actual $initStatus -Expected "200" -Message "multipart initiate failed"
   [xml]$initXml = Get-Content -Path $initPath -Raw
@@ -174,33 +175,33 @@ try {
   $badDigestStatus = SignedStatus -Method "PUT" -Url "$BaseUrl/s3/$BucketName/multi.txt?partNumber=1&uploadId=$uploadId" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -ExtraArgs @("-H", "Content-MD5: AAAAAAAAAAAAAAAAAAAAAA==", "--data-binary", "@$badPartPath")
   Assert-Status -Actual $badDigestStatus -Expected "400" -Message "multipart bad digest should fail"
 
-  $part1Headers = Join-Path $env:TEMP "hs-edge-part1.headers"
+  $part1Headers = Join-Path $tempDir "hs-edge-part1.headers"
   $part1Status = SignedStatus -Method "PUT" -Url "$BaseUrl/s3/$BucketName/multi.txt?partNumber=1&uploadId=$uploadId" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -OutputFile "NUL" -ExtraArgs @("-D", $part1Headers, "--data-binary", "@$part1Path")
   Assert-Status -Actual $part1Status -Expected "200" -Message "multipart part 1 failed"
   $part1Etag = ((Get-Content -Path $part1Headers | Select-String -Pattern '^ETag:\s*(.+)$').Matches[0].Groups[1].Value).Trim()
 
-  $invalidPartBody = Join-Path $env:TEMP "hs-edge-invalid-part-order.xml"
+  $invalidPartBody = Join-Path $tempDir "hs-edge-invalid-part-order.xml"
 @"
 <CompleteMultipartUpload>
   <Part><PartNumber>2</PartNumber><ETag>\"missing\"</ETag></Part>
   <Part><PartNumber>1</PartNumber><ETag>$part1Etag</ETag></Part>
 </CompleteMultipartUpload>
 "@ | Set-Content -Path $invalidPartBody -NoNewline
-  $invalidPartOrderResponse = Join-Path $env:TEMP "hs-edge-invalid-part-order-response.xml"
+  $invalidPartOrderResponse = Join-Path $tempDir "hs-edge-invalid-part-order-response.xml"
   $invalidPartOrderStatus = SignedStatus -Method "POST" -Url "$BaseUrl/s3/$BucketName/multi.txt?uploadId=$uploadId" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -OutputFile $invalidPartOrderResponse -ExtraArgs @("--data-binary", "@$invalidPartBody")
   Assert-Status -Actual $invalidPartOrderStatus -Expected "400" -Message "multipart invalid part order should fail"
   if ((Get-Content -Path $invalidPartOrderResponse -Raw) -notmatch "InvalidPartOrder") {
     throw "expected InvalidPartOrder response body"
   }
 
-  $missingPartBody = Join-Path $env:TEMP "hs-edge-missing-part.xml"
+  $missingPartBody = Join-Path $tempDir "hs-edge-missing-part.xml"
 @"
 <CompleteMultipartUpload>
   <Part><PartNumber>1</PartNumber><ETag>$part1Etag</ETag></Part>
   <Part><PartNumber>2</PartNumber><ETag>\"missing\"</ETag></Part>
 </CompleteMultipartUpload>
 "@ | Set-Content -Path $missingPartBody -NoNewline
-  $missingPartResponse = Join-Path $env:TEMP "hs-edge-missing-part-response.xml"
+  $missingPartResponse = Join-Path $tempDir "hs-edge-missing-part-response.xml"
   $missingPartStatus = SignedStatus -Method "POST" -Url "$BaseUrl/s3/$BucketName/multi.txt?uploadId=$uploadId" -AccessKey $credential.accessKey -SecretKey $credential.secretKey -OutputFile $missingPartResponse -ExtraArgs @("--data-binary", "@$missingPartBody")
   Assert-Status -Actual $missingPartStatus -Expected "400" -Message "multipart missing part should fail"
   if ((Get-Content -Path $missingPartResponse -Raw) -notmatch "InvalidPart") {
@@ -237,14 +238,14 @@ try {
 finally {
   $tempFiles = @(
     $v1Path, $v2Path, $badPartPath, $part1Path, $part2Path, $versionsFile,
-    (Join-Path $env:TEMP "hs-edge-restored.txt"),
-    (Join-Path $env:TEMP "hs-edge-older.txt"),
-    (Join-Path $env:TEMP "hs-edge-initiate.xml"),
-    (Join-Path $env:TEMP "hs-edge-part1.headers"),
-    (Join-Path $env:TEMP "hs-edge-invalid-part-order.xml"),
-    (Join-Path $env:TEMP "hs-edge-invalid-part-order-response.xml"),
-    (Join-Path $env:TEMP "hs-edge-missing-part.xml"),
-    (Join-Path $env:TEMP "hs-edge-missing-part-response.xml")
+    (Join-Path $tempDir "hs-edge-restored.txt"),
+    (Join-Path $tempDir "hs-edge-older.txt"),
+    (Join-Path $tempDir "hs-edge-initiate.xml"),
+    (Join-Path $tempDir "hs-edge-part1.headers"),
+    (Join-Path $tempDir "hs-edge-invalid-part-order.xml"),
+    (Join-Path $tempDir "hs-edge-invalid-part-order-response.xml"),
+    (Join-Path $tempDir "hs-edge-missing-part.xml"),
+    (Join-Path $tempDir "hs-edge-missing-part-response.xml")
   )
   foreach ($path in $tempFiles) {
     if ($path) {

@@ -388,6 +388,7 @@ func (s *Service) DeploymentSetupStatus(ctx context.Context) (DeploymentSetup, e
 	if len(rawRemoteEndpoints) > 0 {
 		_ = json.Unmarshal(rawRemoteEndpoints, &remoteEndpoints)
 	}
+	remoteEndpoints = normalizeEndpoints(remoteEndpoints)
 	status := DeploymentSetup{
 		Completed:               completed,
 		Required:                !completed,
@@ -415,7 +416,7 @@ func (s *Service) CompleteDeploymentSetup(ctx context.Context, input DeploymentS
 	switch mode {
 	case "single-node":
 		distributedMode = ""
-		remoteEndpoints = nil
+		remoteEndpoints = []string{}
 	case "distributed":
 		desiredStorageBackend = "distributed"
 		if distributedMode != "local" && distributedMode != "remote" {
@@ -430,7 +431,7 @@ func (s *Service) CompleteDeploymentSetup(ctx context.Context, input DeploymentS
 			}
 		}
 		if distributedMode == "local" {
-			remoteEndpoints = nil
+			remoteEndpoints = []string{}
 		}
 	default:
 		return DeploymentSetup{}, fmt.Errorf("mode must be single-node or distributed")

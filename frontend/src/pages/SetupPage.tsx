@@ -21,13 +21,14 @@ function isValidEndpoint(value: string) {
 }
 
 export function SetupPage({ userEmail, status, onSubmit }: SetupPageProps) {
+  const savedRemoteEndpoints = Array.isArray(status.remoteEndpoints) ? status.remoteEndpoints : [];
   const [mode, setMode] = useState<"single-node" | "distributed">(
     status.desiredStorageBackend === "distributed" ? "distributed" : "single-node",
   );
   const [distributedMode, setDistributedMode] = useState<"local" | "remote">(
     status.distributedScope === "remote" ? "remote" : "local",
   );
-  const [remoteEndpointsText, setRemoteEndpointsText] = useState(status.remoteEndpoints.join("\n"));
+  const [remoteEndpointsText, setRemoteEndpointsText] = useState(savedRemoteEndpoints.join("\n"));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -67,7 +68,7 @@ export function SetupPage({ userEmail, status, onSubmit }: SetupPageProps) {
       return {
         title: "Apply the remote distributed runtime",
         body: "Your deployment plan is saved. Update the runtime to use the distributed backend and the saved remote node endpoints, then restart the stack.",
-        command: `STORAGE_BACKEND=distributed\nSTORAGE_DISTRIBUTED_ENDPOINTS=${status.remoteEndpoints.join(",")}`,
+        command: `STORAGE_BACKEND=distributed\nSTORAGE_DISTRIBUTED_ENDPOINTS=${savedRemoteEndpoints.join(",")}`,
       };
     }
     return {
@@ -75,7 +76,7 @@ export function SetupPage({ userEmail, status, onSubmit }: SetupPageProps) {
       body: "Your deployment plan is saved. Restart HarborShield without the distributed profile so the running stack matches the saved single-node plan.",
       command: "docker compose --env-file .env up --build -d",
     };
-  }, [status]);
+  }, [savedRemoteEndpoints, status]);
 
   async function submit() {
     setError("");

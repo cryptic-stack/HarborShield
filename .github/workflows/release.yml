@@ -69,6 +69,7 @@ jobs:
         run: |
           cp .env.example .env.distributed
           cat >> .env.distributed <<'EOF'
+          STACK_ENV_FILE=.env.distributed
           STORAGE_BACKEND=distributed
           STORAGE_DISTRIBUTED_ENDPOINTS=http://blobnode-a:9100,http://blobnode-b:9100,http://blobnode-c:9100
           STORAGE_DISTRIBUTED_REPLICAS=3
@@ -77,7 +78,8 @@ jobs:
       - name: Run distributed live-migration smoke
         shell: bash
         run: |
-          docker compose --profile distributed --env-file .env.distributed up --build -d
+          docker compose --env-file .env down --remove-orphans
+          docker compose --profile distributed --env-file .env.distributed up --build -d --force-recreate
           bash ./scripts/distributed-migration-smoke.sh
 
       - name: Collect support bundle on failure

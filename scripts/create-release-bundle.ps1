@@ -81,7 +81,8 @@ $zipPath = Join-Path $outputRoot "$releaseName.zip"
 if (Test-Path $zipPath) {
   Remove-Item -Force $zipPath
 }
-Compress-Archive -Path (Join-Path $stagingRoot "*") -DestinationPath $zipPath
+$zipItems = Get-ChildItem -Force -Path $stagingRoot | ForEach-Object { $_.FullName }
+Compress-Archive -Path $zipItems -DestinationPath $zipPath
 
 $tarPath = Join-Path $outputRoot "$releaseName.tar.gz"
 if (Test-Path $tarPath) {

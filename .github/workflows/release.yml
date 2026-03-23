@@ -80,11 +80,6 @@ jobs:
           docker compose --profile distributed --env-file .env.distributed up --build -d
           bash ./scripts/distributed-migration-smoke.sh
 
-      - name: Tear down distributed beta smoke stack
-        if: ${{ always() }}
-        shell: bash
-        run: docker compose --profile distributed --env-file .env.distributed down -v --remove-orphans
-
       - name: Collect support bundle on failure
         if: failure()
         shell: pwsh
@@ -99,6 +94,11 @@ jobs:
           name: release-validation-support-bundles
           path: artifacts/support-bundles/*.zip
           if-no-files-found: warn
+
+      - name: Tear down distributed beta smoke stack
+        if: ${{ always() }}
+        shell: bash
+        run: docker compose --profile distributed --env-file .env.distributed down -v --remove-orphans
 
   publish-release:
     needs: validate-release

@@ -213,13 +213,7 @@ fi
 
 MIGRATION_RESULT="$(api_json POST "/storage/migrations/local-to-distributed" "{\"limit\":$MIGRATION_LIMIT}")"
 
-MIGRATED_COUNT="$(printf '%s' "$MIGRATION_RESULT" | "$PYTHON_BIN" - <<'PY'
-import json
-import sys
-
-print(int(json.load(sys.stdin).get("migratedCount", 0)))
-PY
-)"
+MIGRATED_COUNT="$("$PYTHON_BIN" -c 'import json, sys; print(int(json.loads(sys.argv[1]).get("migratedCount", 0)))' "$MIGRATION_RESULT")"
 
 if [ "$MIGRATED_COUNT" -lt 1 ]; then
   printf 'Migration endpoint did not migrate any objects.\n' >&2

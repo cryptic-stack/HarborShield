@@ -91,6 +91,10 @@ Release-quality verification also includes:
   - prepares `.env` from `.env.example`
   - can run release smokes, resilience checks, and S3 regression checks on demand
   - collects a support bundle artifact automatically if the release validation run fails
+- GitHub Actions tagged release pipeline: [`.github/workflows/release.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release.yml)
+  - runs the full release validation gate on tags matching `v*`
+  - publishes versioned GHCR images for the backend runtime and frontend
+  - attaches a deployment bundle with pinned `release-images.env` image references and SHA-256 checksums to the GitHub release
 - clean-install smoke: [`scripts/release-clean-install-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-clean-install-smoke.ps1)
 - upgrade smoke with preserved volumes: [`scripts/release-upgrade-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-upgrade-smoke.ps1)
 - worker restart resilience smoke: [`scripts/release-worker-restart-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-worker-restart-smoke.ps1)
@@ -101,3 +105,7 @@ Release-quality verification also includes:
 - bucket-policy condition smoke: [`scripts/s3-policy-conditions-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\s3-policy-conditions-smoke.ps1)
 - operator support bundle: [`scripts/support-bundle.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\support-bundle.ps1)
   - includes summary views for settings, setup, audit volume, database row counts, and quota state
+
+Tagged releases now produce a deployment bundle that can be started with:
+
+`docker compose --env-file .env --env-file release-images.env up -d`

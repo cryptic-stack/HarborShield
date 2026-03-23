@@ -43,6 +43,7 @@ services:
 
   api:
     <<: *app-defaults
+    image: ${API_IMAGE:-harborshield-api:local}
     build:
       context: ./backend
     env_file:
@@ -64,6 +65,7 @@ services:
 
   worker:
     <<: *app-defaults
+    image: ${WORKER_IMAGE:-harborshield-worker:local}
     build:
       context: ./backend
     command: ["./worker"]
@@ -88,6 +90,7 @@ services:
 
   blobnode-a:
     <<: *app-defaults
+    image: ${BLOBNODE_IMAGE:-harborshield-blobnode:local}
     build:
       context: ./backend
     command: ["./blobnode"]
@@ -112,6 +115,7 @@ services:
 
   blobnode-b:
     <<: *app-defaults
+    image: ${BLOBNODE_IMAGE:-harborshield-blobnode:local}
     build:
       context: ./backend
     command: ["./blobnode"]
@@ -136,6 +140,7 @@ services:
 
   blobnode-c:
     <<: *app-defaults
+    image: ${BLOBNODE_IMAGE:-harborshield-blobnode:local}
     build:
       context: ./backend
     command: ["./blobnode"]
@@ -160,6 +165,7 @@ services:
 
   blobnode-d:
     <<: *app-defaults
+    image: ${BLOBNODE_IMAGE:-harborshield-blobnode:local}
     build:
       context: ./backend
     command: ["./blobnode"]
@@ -184,6 +190,7 @@ services:
 
   frontend:
     <<: *app-defaults
+    image: ${FRONTEND_IMAGE:-harborshield-frontend:local}
     build:
       context: ./frontend
     env_file:

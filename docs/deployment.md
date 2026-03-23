@@ -13,7 +13,7 @@ Notes:
 - `frontend` and `api` are reachable by `caddy` on the edge network
 - optional profiles: `clamav`, `prometheus`
 - long-running services now default to `restart: unless-stopped`, `no-new-privileges`, and bounded Docker log rotation
-- image references are env-configurable through `POSTGRES_IMAGE`, `REDIS_IMAGE`, `CADDY_IMAGE`, `CLAMAV_IMAGE`, `PROMETHEUS_IMAGE`, and `WEBHOOK_RECEIVER_IMAGE`
+- image references are env-configurable through `API_IMAGE`, `WORKER_IMAGE`, `BLOBNODE_IMAGE`, `FRONTEND_IMAGE`, `POSTGRES_IMAGE`, `REDIS_IMAGE`, `CADDY_IMAGE`, `CLAMAV_IMAGE`, `PROMETHEUS_IMAGE`, and `WEBHOOK_RECEIVER_IMAGE`
 - log retention defaults can be tuned with `COMPOSE_LOG_MAX_SIZE` and `COMPOSE_LOG_MAX_FILES`
 - object blobs are encrypted by the application, but PostgreSQL and Redis still require host or platform encryption if you need encrypted persistent stores end to end
 - admin API contract work starts in [`docs/openapi-admin.yaml`](c:\Users\JBrown\Documents\Project\s3-platform\docs\openapi-admin.yaml)
@@ -27,6 +27,7 @@ Notes:
 Release-readiness deployment recommendation:
 
 - copy `.env.example` and pin any image tags you intend to support in production instead of relying on floating defaults
+- tagged GitHub releases now include a `release-images.env` file with pinned HarborShield app images; start that bundle with `docker compose --env-file .env --env-file release-images.env up -d`
 - keep optional profiles such as `clamav` and `prometheus` on explicit image versions during release validation
 - size Docker log rotation deliberately for your host so support bundles and disk usage stay predictable
 

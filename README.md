@@ -90,6 +90,7 @@ Release-quality verification also includes:
   - workflow-dispatch only
   - prepares `.env` from `.env.example`
   - can run release smokes, resilience checks, and S3 regression checks on demand
+  - collects a support bundle artifact automatically if the release validation run fails
 - clean-install smoke: [`scripts/release-clean-install-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-clean-install-smoke.ps1)
 - upgrade smoke with preserved volumes: [`scripts/release-upgrade-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-upgrade-smoke.ps1)
 - worker restart resilience smoke: [`scripts/release-worker-restart-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-worker-restart-smoke.ps1)

@@ -67,3 +67,18 @@ jobs:
           ${{ inputs.include_release_smokes && '-IncludeReleaseSmokes' || '' }}
           ${{ inputs.include_resilience && '-IncludeResilience' || '' }}
           ${{ inputs.include_s3_regression && '-IncludeS3Regression' || '' }}
+
+      - name: Collect support bundle on failure
+        if: failure()
+        shell: pwsh
+        run: >
+          ./scripts/support-bundle.ps1
+          -FallbackAdminPassword "ReleaseSmoke!234"
+
+      - name: Upload support bundles
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-validation-support-bundles
+          path: artifacts/support-bundles/*.zip
+          if-no-files-found: warn

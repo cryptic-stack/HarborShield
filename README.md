@@ -25,11 +25,12 @@ Not complete yet:
 - OpenAPI generation beyond the scaffold in [`docs/openapi-admin.yaml`](c:\Users\JBrown\Documents\Project\s3-platform\docs\openapi-admin.yaml)
 - richer OIDC federation polish such as live provider onboarding guidance, advanced claim sync, and temporary object-plane credentials
 - stronger object-lock or legal-hold semantics beyond current retention hooks
-- replication, storage tiering, and non-filesystem backends
+- deeper distributed repair and rebalance automation
+- storage tiering and non-filesystem backends
 - full AWS IAM and full AWS S3 compatibility parity
 - end-to-end encrypted PostgreSQL and Redis data stores by default
 
-Optional distributed storage is now explicitly planned through the `STORAGE_BACKEND` selector, but only `local` is implemented today. A future `distributed` backend is intended to add Garage-like multi-node placement and replication while keeping PostgreSQL authoritative for metadata.
+Optional distributed storage is available as a beta path through `STORAGE_BACKEND=distributed`. Operators can admit remote nodes live from the `Storage` page, migrate existing local objects into the distributed node set without restarting the API or worker, and use PostgreSQL as the authoritative metadata plane throughout the transition.
 
 ## Included components
 
@@ -51,6 +52,7 @@ Optional distributed storage is now explicitly planned through the `STORAGE_BACK
 
 - First-run bootstrap and setup wizard: [`docs/first-run.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\first-run.md)
 - Day-2 operation and admin workflows: [`docs/operations.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\operations.md)
+- Distributed node admission and live migration workflow: [`docs/distributed-operations.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\distributed-operations.md)
 - First-run release walkthrough checklist: [`docs/first-run-checklist.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\first-run-checklist.md)
 - Deployment details and secret handling: [`docs/deployment.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\deployment.md)
 - Backup and restore runbook: [`docs/backup-restore.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\backup-restore.md)
@@ -80,6 +82,18 @@ It validates:
 - object upload/download
 - audit API fetch
 
+For the distributed beta path, use:
+
+`./scripts/distributed-migration-smoke.sh`
+
+It validates:
+
+- node catalog access through the admin API
+- local write fallback while all nodes are in `maintenance`
+- live node activation without changing backend env vars
+- local-to-distributed migration for an existing object
+- readback after migration plus placement visibility
+
 The [`scripts/`](c:\Users\JBrown\Documents\Project\s3-platform\scripts) directory is limited to operator, demo, packaging, and supported release-validation helpers.
 
 Release-quality verification also includes:
@@ -92,10 +106,11 @@ Release-quality verification also includes:
 - GitHub Actions manual release validation: [`.github/workflows/release-validation.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release-validation.yml)
   - workflow-dispatch only
   - prepares `.env` from `.env.example`
-  - can run release smokes, resilience checks, and S3 regression checks on demand
+  - can run release smokes, resilience checks, S3 regression checks, and the distributed live-migration beta smoke on demand
   - collects a support bundle artifact automatically if the release validation run fails
 - GitHub Actions tagged release pipeline: [`.github/workflows/release.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release.yml)
   - runs the full release validation gate on tags matching `v*`
+  - runs the distributed live-migration beta smoke before publishing
   - publishes versioned GHCR images for the backend runtime and frontend
   - attaches a deployment bundle with pinned `release-images.env` image references and SHA-256 checksums to the GitHub release
 - clean-install smoke: [`scripts/release-clean-install-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\release-clean-install-smoke.ps1)
@@ -106,6 +121,7 @@ Release-quality verification also includes:
 - multipart and versioning edge-case smoke: [`scripts/s3-edge-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\s3-edge-smoke.ps1)
 - bucket-policy compatibility smoke: [`scripts/s3-policy-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\s3-policy-smoke.ps1)
 - bucket-policy condition smoke: [`scripts/s3-policy-conditions-smoke.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\s3-policy-conditions-smoke.ps1)
+- distributed live-migration smoke: [`scripts/distributed-migration-smoke.sh`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\distributed-migration-smoke.sh)
 - operator support bundle: [`scripts/support-bundle.ps1`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\support-bundle.ps1)
   - includes summary views for settings, setup, audit volume, database row counts, and quota state
 

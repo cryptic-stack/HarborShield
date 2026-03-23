@@ -64,6 +64,27 @@ jobs:
           -IncludeResilience
           -IncludeS3Regression
 
+      - name: Prepare distributed beta smoke environment
+        shell: bash
+        run: |
+          cp .env.example .env.distributed
+          cat >> .env.distributed <<'EOF'
+          STORAGE_BACKEND=distributed
+          STORAGE_DISTRIBUTED_ENDPOINTS=http://blobnode-a:9100,http://blobnode-b:9100,http://blobnode-c:9100
+          STORAGE_DISTRIBUTED_REPLICAS=3
+          EOF
+
+      - name: Run distributed live-migration smoke
+        shell: bash
+        run: |
+          docker compose --profile distributed --env-file .env.distributed up --build -d
+          bash ./scripts/distributed-migration-smoke.sh
+
+      - name: Tear down distributed beta smoke stack
+        if: ${{ always() }}
+        shell: bash
+        run: docker compose --profile distributed --env-file .env.distributed down -v --remove-orphans
+
       - name: Collect support bundle on failure
         if: failure()
         shell: pwsh

@@ -30,6 +30,9 @@ Implemented domains:
 - `/malware-status`
 - `/settings`
 - `/storage/nodes`
+- `/storage/migration-status`
+- `/storage/migrations/history`
+- `/storage/migrations/local-to-distributed`
 - `/storage/placements`
 - `/quotas`
 - `/roles`
@@ -106,4 +109,4 @@ Not yet complete:
 - full AWS bucket policy condition/principal parity
 - OIDC or STS-style federated identity on the object plane
 
-Storage topology endpoints are currently read-only scaffolding for the future optional distributed backend. On the default local backend they will typically return empty lists.
+Storage topology endpoints now back the distributed beta control surface. On the default local backend they will typically return empty lists, while distributed mode uses them for live node admission, migration status, migration history, and placement visibility.

@@ -14,24 +14,28 @@ HarborShield separates platform administration from object access:
 - Object blobs are stored on local disk at `${STORAGE_ROOT}/tenants/<tenant>/buckets/<bucket-id>/objects/<object-id>`
 - PostgreSQL remains authoritative for object metadata, auditability, quotas, and future backend abstractions
 - Storage backends implement `storage.BlobStore`
-- `STORAGE_BACKEND=local` is the only production-ready backend today
-- `STORAGE_BACKEND=distributed` is reserved for a future optional multi-node backend with Garage-like replication and placement semantics, while still keeping metadata in PostgreSQL
+- `STORAGE_BACKEND=local` remains the default and broad-release candidate path
+- `STORAGE_BACKEND=distributed` is a beta multi-node backend with live node admission, placement records, and local-to-distributed migration while still keeping metadata in PostgreSQL
 
 ## Optional distributed storage direction
 
-The planned distributed mode is intentionally optional:
+The distributed mode is intentionally optional:
 
 - single-node Docker Compose remains the default path for homelab and SMB installs
 - the distributed backend will be selected explicitly through `STORAGE_BACKEND=distributed`
 - the local encrypted filesystem backend remains supported as the default and simplest deployment option
-- distributed mode is expected to add:
-  - object-part placement across storage nodes
-  - per-object replication policy
-  - background repair and rebalance jobs
-  - node health and capacity reporting
-  - a storage-driver abstraction that preserves the current metadata schema
+- distributed mode already includes:
+  - live storage-node catalog updates from the control plane
+  - object placement records in PostgreSQL
+  - per-object storage backend tracking during mixed local and distributed operation
+  - operator-driven local-to-distributed migration from the `Storage` page
+  - node health, TLS identity, and operator-state visibility in the admin UI
+- distributed mode still needs more proof before GA:
+  - stronger repair and rebalance reliability evidence
+  - topology and recovery runbooks
+  - wider failure-path regression coverage
 
-See [`distributed-storage.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\distributed-storage.md) for the phased implementation program.
+See [`distributed-storage.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\distributed-storage.md) for the current beta design and [`distributed-operations.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\distributed-operations.md) for the supported operator workflow.
 
 ## Auth planes
 

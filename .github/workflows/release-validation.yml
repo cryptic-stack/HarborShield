@@ -15,6 +15,10 @@ on:
         description: Run S3 SDK, edge, and policy regression smokes
         type: boolean
         default: true
+      include_distributed_regression:
+        description: Run distributed live-migration beta smoke
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -69,6 +73,29 @@ jobs:
           ${{ inputs.include_release_smokes && '-IncludeReleaseSmokes' || '' }}
           ${{ inputs.include_resilience && '-IncludeResilience' || '' }}
           ${{ inputs.include_s3_regression && '-IncludeS3Regression' || '' }}
+
+      - name: Prepare distributed beta smoke environment
+        if: ${{ inputs.include_distributed_regression }}
+        shell: bash
+        run: |
+          cp .env.example .env.distributed
+          cat >> .env.distributed <<'EOF'
+          STORAGE_BACKEND=distributed
+          STORAGE_DISTRIBUTED_ENDPOINTS=http://blobnode-a:9100,http://blobnode-b:9100,http://blobnode-c:9100
+          STORAGE_DISTRIBUTED_REPLICAS=3
+          EOF
+
+      - name: Run distributed live-migration smoke
+        if: ${{ inputs.include_distributed_regression }}
+        shell: bash
+        run: |
+          docker compose --profile distributed --env-file .env.distributed up --build -d
+          bash ./scripts/distributed-migration-smoke.sh
+
+      - name: Tear down distributed beta smoke stack
+        if: ${{ always() && inputs.include_distributed_regression }}
+        shell: bash
+        run: docker compose --profile distributed --env-file .env.distributed down -v --remove-orphans
 
       - name: Collect support bundle on failure
         if: failure()

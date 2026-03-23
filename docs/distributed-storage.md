@@ -1,154 +1,95 @@
-# Optional Distributed Storage Plan
+# Distributed Storage Beta
 
-This document outlines the phased plan for an optional distributed blob backend inspired by the problem space of Garage-style object placement, while keeping HarborShield original in implementation and operator model.
+This document describes HarborShield's current distributed-storage beta path.
 
-## Goals
+The key operator goal is simple: once the stack is already running in `STORAGE_BACKEND=distributed`, adding remote storage nodes and migrating existing local objects should not require editing backend config and restarting the API or worker.
 
-- keep `local` storage as the default and simplest path
-- make distributed storage opt-in through configuration
-- preserve PostgreSQL as the authoritative metadata system
-- preserve the current S3, admin, audit, quota, malware, and worker layers
-- add multi-node blob durability without forcing a distributed deployment on every user
+## Current status
 
-## Non-goals
-
-- replacing PostgreSQL metadata with a distributed metadata plane
-- implementing erasure coding in the first distributed release
-- forcing Kubernetes or a separate control plane
-- changing the admin UX into a cluster-first product before the backend exists
-
-## Proposed mode switch
-
-- `STORAGE_BACKEND=local`
-  - current encrypted filesystem backend
-- `STORAGE_BACKEND=distributed`
-  - future multi-node backend
-- `STORAGE_DISTRIBUTED_ENDPOINTS=http://node-a:9100,http://node-b:9100,http://node-c:9100`
-  - reserved for future node membership bootstrap
-
-## Proposed architecture
-
-### Metadata plane
-
+- `local` remains the default and broad-release candidate path
+- `distributed` is implemented as a beta backend
 - PostgreSQL remains authoritative for:
-  - bucket metadata
+  - buckets
   - object metadata
-  - version records
-  - placement records
-  - repair state
+  - object placements
   - quotas
-  - lifecycle and retention state
-  - audit and eventing
+  - audit history
+  - operator state
+- the `Storage` page is the main control surface for distributed operation
 
-### Blob plane
+## What works now
 
-- the distributed backend stores encrypted object chunks on multiple storage nodes
-- each object version gets a placement plan written to PostgreSQL
-- reads resolve placement from PostgreSQL and fetch from a healthy replica
-- writes commit metadata only after the required replica set acknowledges durability
-- blob-node RPC authentication is separated from object encryption:
-  - `STORAGE_MASTER_KEY` remains the at-rest blob encryption key
-  - `STORAGE_NODE_SHARED_SECRET` protects blob-node `PUT`/`GET`/`HEAD`/`DELETE` traffic
-- new nodes can be admitted with one-time join tokens before they are switched into an active operator state
+- explicit backend selection through `STORAGE_BACKEND`
+- distributed blob writes when active storage nodes are available
+- live node registration and operator-state changes through the admin API and UI
+- node health refresh plus TLS identity observation and re-pin support
+- placement records stored in PostgreSQL
+- per-object `storage_backend` tracking so reads, deletes, and malware scans work during mixed local and distributed operation
+- local write fallback when the distributed backend is enabled but no active placement targets are available
+- operator-driven local-to-distributed migration in batches without restarting the API or worker
 
-### Worker plane
+## Operator model
 
-The worker will eventually own:
+HarborShield treats distributed storage as a control-plane-driven catalog:
 
-- placement reconciliation
-- replica repair
-- rebalance after node membership changes
-- orphan cleanup
-- capacity accounting
-- background verification
+- storage nodes are registered in `storage_nodes`
+- object replicas are tracked in `object_placements`
+- active placement targets are resolved from the live node catalog, not only from startup config
+- existing local objects can be copied into distributed storage later while preserving metadata continuity
 
-## Proposed schema additions
+That means a running distributed deployment can evolve this way:
 
-Future migrations should introduce:
-
-- `storage_nodes`
-  - node id
-  - endpoint
-  - availability state
-  - capacity metrics
-  - placement zone
-- `object_placements`
-  - object version id
-  - chunk ordinal
-  - node id
-  - physical locator
-  - replica index
-  - checksum
-  - state
-- `storage_repairs`
-  - repair job id
-  - object version id
-  - target node id
-  - outcome
-
-## Phased implementation
-
-### Phase A: Configuration and abstraction
-
-- add `STORAGE_BACKEND` selection
-- keep `local` as the default
-- fail fast on unsupported distributed mode until the backend exists
-- expose storage-backend status in settings and docs
-
-### Phase B: Placement metadata
-
-- add `storage_nodes` and `object_placements`
-- write placement records alongside object versions
-- keep actual writes on local storage while the metadata model is proven
-
-### Phase C: Node service
-
-- add a dedicated blob-node service with:
-  - encrypted put/get/delete
-  - checksum validation
-  - health endpoint
-  - authenticated internal API
-  - one-time join-token enrollment
-
-### Phase D: Replicated writes
-
-- add a distributed storage driver that:
-  - chooses replica targets
-  - writes to multiple nodes
-  - commits metadata after durability threshold
-  - supports read failover
-
-### Phase E: Repair and rebalance
-
-- add worker-driven repair jobs
-- add node drain and rebalance
-- expose health and placement drift in the admin UI
-
-### Phase F: Advanced durability
-
-- optional erasure coding
-- topology-aware placement
-- cross-site replication hooks
-
-## Docker direction
-
-Distributed mode should stay optional in Docker:
-
-- keep the current Compose stack unchanged for `local`
-- add a second Compose file or profile for distributed labs
-- avoid publishing storage-node ports externally by default
+1. start the control plane in distributed mode
+2. keep new or remote nodes in `maintenance`
+3. promote healthy nodes to `active`
+4. let new writes target the active distributed set
+5. migrate older local objects in batches from the `Storage` page
 
 ## Security model
 
-- retain application-level blob encryption by default
-- use signed internal node-to-node requests
-- keep secret material out of object metadata rows
-- audit placement mutations and repair outcomes
+- `STORAGE_MASTER_KEY` still protects encrypted blobs at rest
+- `STORAGE_NODE_SHARED_SECRET` is separate and protects blob-node RPC traffic
+- one-time join tokens can be used to enroll nodes before they receive RPC credentials
+- HTTPS and TLS identity pinning can be layered onto blob-node connections
 
-## Recommended first implementation tasks
+## Supported beta workflow
 
-1. Add `STORAGE_BACKEND` config and a storage factory.
-2. Expose backend status in the admin settings snapshot.
-3. Add this design doc and roadmap references.
-4. Add schema for `storage_nodes` and `object_placements` without activating them.
-5. Build a dev-only blob-node service behind an internal network.
+The supported runtime workflow is documented in [`distributed-operations.md`](./distributed-operations.md).
+
+In short:
+
+- do not treat `STORAGE_DISTRIBUTED_ENDPOINTS` as the only day-2 source of truth after the stack is up
+- use the `Storage` page or storage admin API to register and manage nodes live
+- use migration status and history to drain older local objects gradually
+
+## Current limitations
+
+- `distributed` is still beta and not part of the `v1.0` GA promise
+- migration progress is currently object-count based, not byte-accurate
+- migration is batch-driven, not a long-running managed workflow with pause and resume semantics
+- distributed repair and rebalance need more operational proof before promotion
+- distributed backup and restore still require topology-aware validation beyond the single-node runbook
+
+## Public regression coverage
+
+Use the supported smoke for this path:
+
+- [`scripts/distributed-migration-smoke.sh`](../scripts/distributed-migration-smoke.sh)
+
+That smoke validates:
+
+- admin login
+- storage-node visibility
+- local write fallback with no active nodes
+- live node activation
+- local-to-distributed migration
+- post-migration object readback and placement visibility
+
+## Promotion criteria
+
+Distributed mode should remain beta until all are true:
+
+- operator docs are complete
+- migration and recovery behavior are repeatedly validated
+- repair and rebalance reliability are proven under failure
+- support level and known limitations are explicit in release notes

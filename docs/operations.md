@@ -135,6 +135,10 @@ Settings changes render as before/after diffs rather than raw JSON.
 
 ## Storage operations
 
+Distributed-specific companion:
+
+- [`docs/distributed-operations.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\distributed-operations.md)
+
 ### Single-node mode
 
 In single-node mode:
@@ -149,6 +153,7 @@ In distributed mode, use `Storage` for:
 - TLS identity state
 - placement visibility
 - replica policy visibility
+- migration status and migration history
 
 Operator states:
 - `active`: normal placement target
@@ -162,7 +167,8 @@ Typical workflows:
 1. register the node
 2. confirm it appears in `maintenance`
 3. activate it when ready
-4. watch rebalance progress
+4. confirm health and TLS identity
+5. watch rebalance and placement signals
 
 #### Drain a node
 
@@ -170,6 +176,14 @@ Typical workflows:
 2. wait for placements to move
 3. confirm no critical shortfall remains
 4. move to `maintenance` or retire it
+
+#### Migrate older local objects
+
+1. confirm at least one healthy node is `active`
+2. review `Pending Local Objects`
+3. use `Migrate 100 Local Objects`
+4. verify migration history and placement visibility
+5. repeat until the pending local count reaches `0`
 
 #### Re-pin TLS identity
 

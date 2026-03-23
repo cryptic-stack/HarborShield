@@ -305,6 +305,7 @@ Actions:
 - document distributed failure and recovery actions
 - verify operator state transitions under degraded node conditions
 - verify storage policy changes under active distributed load
+- keep a public regression helper for live migration from local objects into the active distributed node set
 
 Exit criteria:
 
@@ -318,6 +319,7 @@ Suggested tickets:
 - `DST-002` distributed operator runbook
 - `DST-003` distributed topology recommendations
 - `DST-004` beta promotion criteria
+- public live-migration regression helper: [`scripts/distributed-migration-smoke.sh`](c:\Users\JBrown\Documents\Project\s3-platform\scripts\distributed-migration-smoke.sh)
 
 ## Go Or No-Go Checklist For v1.0
 
@@ -389,8 +391,9 @@ GitHub workflow split:
 - deeper release workflow: [`.github/workflows/release-validation.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release-validation.yml)
   - manual `workflow_dispatch` run
   - prepares `.env` from `.env.example`
-  - can execute release smokes, resilience checks, and S3 regression suites before a release decision
+  - can execute release smokes, resilience checks, S3 regression suites, and the distributed live-migration beta smoke before a release decision
 - tagged publish workflow: [`.github/workflows/release.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release.yml)
   - runs the full release gate on tags matching `v*`
+  - runs the distributed live-migration beta smoke before publishing
   - publishes versioned GHCR images for backend and frontend runtimes
   - attaches a deployment bundle with pinned image refs and SHA-256 checksums to the GitHub release

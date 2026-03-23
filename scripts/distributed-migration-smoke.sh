@@ -77,18 +77,34 @@ PAYLOAD_FILE="$(mktemp)"
 PLACEMENTS_FILE="$(mktemp)"
 DOWNLOAD_FILE="$(mktemp)"
 
-curl -fsS -X POST "$BASE_URL/api/v1/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" > "$LOGIN_FILE"
+TOKEN=""
+LOGIN_ATTEMPTS=0
+while [ -z "$TOKEN" ] && [ "$LOGIN_ATTEMPTS" -lt 15 ]; do
+  LOGIN_ATTEMPTS=$((LOGIN_ATTEMPTS + 1))
+  LOGIN_RESPONSE="$(curl -fsS -X POST "$BASE_URL/api/v1/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"$ADMIN_EMAIL\",\"password\":\"$ADMIN_PASSWORD\"}" || true)"
+  if [ -n "$LOGIN_RESPONSE" ]; then
+    printf '%s' "$LOGIN_RESPONSE" > "$LOGIN_FILE"
+    TOKEN="$("$PYTHON_BIN" -c 'import json, sys
+try:
+    print(json.loads(sys.argv[1]).get("accessToken", ""))
+except Exception:
+    print("")
+' "$LOGIN_RESPONSE")"
+  fi
+  if [ -z "$TOKEN" ]; then
+    sleep 2
+  fi
+done
 
-TOKEN="$("$PYTHON_BIN" - "$LOGIN_FILE" <<'PY'
-import json
-import sys
-
-with open(sys.argv[1], "r", encoding="utf-8") as handle:
-    print(json.load(handle)["accessToken"])
-PY
-)"
+if [ -z "$TOKEN" ]; then
+  printf 'Unable to obtain an admin access token from %s/api/v1/auth/login\n' "$BASE_URL" >&2
+  if [ -s "$LOGIN_FILE" ]; then
+    printf 'Last login response:\n%s\n' "$(cat "$LOGIN_FILE")" >&2
+  fi
+  exit 1
+fi
 
 api_json GET "/storage/nodes" > "$NODES_FILE"
 cp "$NODES_FILE" "$ORIGINAL_NODES_FILE"

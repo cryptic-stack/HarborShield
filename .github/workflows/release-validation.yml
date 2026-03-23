@@ -21,6 +21,7 @@ permissions:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+  DOCKER_DEFAULT_PLATFORM: linux/amd64
 
 jobs:
   release-validation:
@@ -59,6 +60,33 @@ jobs:
       - name: Prepare CI environment file
         shell: pwsh
         run: Copy-Item .env.example .env -Force
+
+      - name: Switch Docker to Linux containers
+        shell: pwsh
+        run: |
+          $dockerCli = "C:\Program Files\Docker\Docker\DockerCli.exe"
+          if (-not (Test-Path $dockerCli)) {
+            throw "DockerCli.exe was not found on the GitHub Windows runner."
+          }
+
+          & $dockerCli -SwitchLinuxEngine
+
+          $deadline = (Get-Date).AddMinutes(2)
+          do {
+            try {
+              $osType = docker info --format "{{.OSType}}"
+              if ($LASTEXITCODE -eq 0 -and $osType -eq "linux") {
+                Write-Host "Docker engine is using Linux containers."
+                break
+              }
+            } catch {
+            }
+            Start-Sleep -Seconds 5
+          } while ((Get-Date) -lt $deadline)
+
+          if ($osType -ne "linux") {
+            throw "Docker engine did not switch to Linux containers within the timeout."
+          }
 
       - name: Run release validation gate
         shell: pwsh

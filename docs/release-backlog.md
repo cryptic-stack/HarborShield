@@ -387,4 +387,5 @@ GitHub workflow split:
 - deeper release workflow: [`.github/workflows/release-validation.yml`](c:\Users\JBrown\Documents\Project\s3-platform\.github\workflows\release-validation.yml)
   - manual `workflow_dispatch` run
   - prepares `.env` from `.env.example`
+  - switches the hosted Windows runner to Docker's Linux engine before stack validation
   - can execute release smokes, resilience checks, and S3 regression suites before a release decision

@@ -117,7 +117,28 @@ func NewDistributed(endpoints []string, replicas int, token string, tlsConfig *t
 }
 
 func (s *DistributedStore) Endpoints() []string {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	return append([]string(nil), s.endpoints...)
+}
+
+func (s *DistributedStore) ReplaceEndpoints(endpoints []string) {
+	normalized := make([]string, 0, len(endpoints))
+	seen := make(map[string]struct{}, len(endpoints))
+	for _, endpoint := range endpoints {
+		endpoint = strings.TrimRight(strings.TrimSpace(endpoint), "/")
+		if endpoint == "" {
+			continue
+		}
+		if _, ok := seen[endpoint]; ok {
+			continue
+		}
+		seen[endpoint] = struct{}{}
+		normalized = append(normalized, endpoint)
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.endpoints = normalized
 }
 
 func (s *DistributedStore) SetEndpointToken(endpoint, token string) {
@@ -208,7 +229,7 @@ func bytesReader(payload []byte) io.Reader {
 }
 
 func (s *DistributedStore) Put(ctx context.Context, path string, body io.Reader) error {
-	return s.putToEndpoints(ctx, path, body, s.endpoints)
+	return s.putToEndpoints(ctx, path, body, s.Endpoints())
 }
 
 func (s *DistributedStore) PutToEndpoints(ctx context.Context, path string, body io.Reader, endpoints []string) error {
@@ -236,7 +257,7 @@ func (s *DistributedStore) putToEndpoints(ctx context.Context, path string, body
 
 func (s *DistributedStore) Get(ctx context.Context, path string) (io.ReadCloser, error) {
 	var lastErr error
-	for _, endpoint := range s.endpoints {
+	for _, endpoint := range s.Endpoints() {
 		reader, err := s.getOne(ctx, endpoint, path)
 		if err == nil {
 			return reader, nil
@@ -251,7 +272,7 @@ func (s *DistributedStore) Get(ctx context.Context, path string) (io.ReadCloser,
 
 func (s *DistributedStore) Delete(ctx context.Context, path string) error {
 	var lastErr error
-	for _, endpoint := range s.endpoints {
+	for _, endpoint := range s.Endpoints() {
 		if err := s.deleteOne(ctx, endpoint, path); err != nil {
 			lastErr = err
 		}
@@ -260,11 +281,12 @@ func (s *DistributedStore) Delete(ctx context.Context, path string) error {
 }
 
 func (s *DistributedStore) normalizeTargetEndpoints(endpoints []string) []string {
+	currentEndpoints := s.Endpoints()
 	if len(endpoints) == 0 {
-		return append([]string(nil), s.endpoints...)
+		return currentEndpoints
 	}
 	allowed := map[string]struct{}{}
-	for _, endpoint := range s.endpoints {
+	for _, endpoint := range currentEndpoints {
 		allowed[endpoint] = struct{}{}
 	}
 	out := make([]string, 0, len(endpoints))
@@ -279,7 +301,7 @@ func (s *DistributedStore) normalizeTargetEndpoints(endpoints []string) []string
 		out = append(out, endpoint)
 	}
 	if len(out) == 0 {
-		return append([]string(nil), s.endpoints...)
+		return currentEndpoints
 	}
 	return out
 }

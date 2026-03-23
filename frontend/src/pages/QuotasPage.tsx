@@ -25,6 +25,13 @@ type QuotaResponse = {
   userItems: UserQuota[];
 };
 
+function normalizeQuotaResponse(value: Partial<QuotaResponse> | null | undefined): QuotaResponse {
+  return {
+    bucketItems: Array.isArray(value?.bucketItems) ? value.bucketItems : [],
+    userItems: Array.isArray(value?.userItems) ? value.userItems : [],
+  };
+}
+
 function toByteFieldValue(value: number | null) {
   return value === null ? "" : formatBytes(value);
 }
@@ -68,9 +75,10 @@ export function QuotasPage() {
   const [userDrafts, setUserDrafts] = useState<Record<string, { maxBytes: string; warningThresholdPercent: string }>>({});
   const [error, setError] = useState("");
   const [savingKey, setSavingKey] = useState("");
+  const [loading, setLoading] = useState(true);
 
   async function load() {
-    const result = await api<QuotaResponse>("/quotas");
+    const result = normalizeQuotaResponse(await api<QuotaResponse>("/quotas"));
     setBucketItems(result.bucketItems);
     setUserItems(result.userItems);
     setBucketDrafts(
@@ -146,7 +154,10 @@ export function QuotasPage() {
   }
 
   useEffect(() => {
-    void load();
+    setLoading(true);
+    void load()
+      .catch((err) => setError(err instanceof Error ? err.message : "Unable to load quotas"))
+      .finally(() => setLoading(false));
   }, []);
 
   return (
@@ -170,7 +181,9 @@ export function QuotasPage() {
         </div>
 
         <div className="mt-4 space-y-4">
-          {bucketItems.length === 0 ? (
+          {loading ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">Loading bucket quotas...</div>
+          ) : bucketItems.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">No buckets available yet.</div>
           ) : (
             bucketItems.map((item) => {
@@ -264,7 +277,9 @@ export function QuotasPage() {
         </div>
 
         <div className="mt-4 space-y-4">
-          {userItems.length === 0 ? (
+          {loading ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">Loading user quotas...</div>
+          ) : userItems.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">No users available yet.</div>
           ) : (
             userItems.map((item) => {

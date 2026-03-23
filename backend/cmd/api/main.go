@@ -79,16 +79,20 @@ func main() {
 	bucketSvc := buckets.New(pool, cfg.StorageDefaultClass, cfg.StorageDistributedReplicas, settingsSvc)
 	dashboardSvc := dashboard.New(pool, cfg.StorageDistributedReplicas, settingsSvc)
 	quotaSvc := quotas.NewService(pool)
-	blobStore, err := storage.NewStore(cfg.StorageBackend, cfg.StorageRoot, cfg.StorageMasterKey, cfg.StorageDistributedEndpoints, cfg.StorageDistributedReplicas, cfg.StorageNodeSharedSecret, blobNodeTLSConfig)
+	localStore, err := storage.NewLocal(cfg.StorageRoot, cfg.StorageMasterKey)
 	if err != nil {
 		log.Fatal(err)
 	}
 	var distributedStore *storage.DistributedStore
-	if typedStore, ok := blobStore.(*storage.DistributedStore); ok {
-		distributedStore = typedStore
+	if cfg.StorageBackend == "distributed" || len(cfg.StorageDistributedEndpoints) > 0 {
+		distributedStore = storage.NewDistributed(cfg.StorageDistributedEndpoints, cfg.StorageDistributedReplicas, cfg.StorageNodeSharedSecret, blobNodeTLSConfig)
 	}
-	objectSvc := objects.New(pool, blobStore, cfg.S3DefaultTenant, quotaSvc, cfg.StorageBackend, cfg.StorageDistributedEndpoints, cfg.StorageDistributedReplicas, cfg.StorageDefaultClass, settingsSvc)
-	multipartSvc := multipart.New(pool, blobStore, objectSvc, cfg.S3DefaultTenant)
+	var activeStore storage.BlobStore = localStore
+	if cfg.StorageBackend == "distributed" && distributedStore != nil {
+		activeStore = distributedStore
+	}
+	objectSvc := objects.New(pool, localStore, distributedStore, cfg.S3DefaultTenant, quotaSvc, cfg.StorageBackend, cfg.StorageDistributedEndpoints, cfg.StorageDistributedReplicas, cfg.StorageDefaultClass, settingsSvc)
+	multipartSvc := multipart.New(pool, activeStore, objectSvc, cfg.S3DefaultTenant)
 	credSvc, err := credentials.New(pool, cfg.StorageMasterKey)
 	if err != nil {
 		log.Fatal(err)
@@ -99,7 +103,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	malwareSvc := malware.NewService(pool, blobStore, malware.NewScanner(cfg.EnableClamAV, cfg.ClamAVHost, cfg.ClamAVPort), cfg.MalwareScanMode, auditSvc, eventSvc, settingsSvc)
+	malwareSvc := malware.NewService(pool, localStore, distributedStore, malware.NewScanner(cfg.EnableClamAV, cfg.ClamAVHost, cfg.ClamAVPort), cfg.MalwareScanMode, auditSvc, eventSvc, settingsSvc)
 	adminTokenSvc := adminapi.New(pool)
 	policySvc := policies.NewService(pool)
 	oidcSvc := oidc.New(cfg, authService, settingsSvc)

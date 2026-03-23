@@ -124,6 +124,10 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 	if err != nil {
 		return Snapshot{}, err
 	}
+	distributedEndpoints, err := s.ResolveDistributedEndpoints(ctx)
+	if err != nil {
+		return Snapshot{}, err
+	}
 	malwareSettings, err := s.ResolveMalwareSettings(ctx)
 	if err != nil {
 		return Snapshot{}, err
@@ -140,7 +144,7 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 		MaxUploadSizeBytes:          s.cfg.MaxUploadSizeBytes,
 		StorageBackend:              s.cfg.StorageBackend,
 		StorageRoot:                 s.cfg.StorageRoot,
-		StorageDistributedEndpoints: append([]string(nil), s.cfg.StorageDistributedEndpoints...),
+		StorageDistributedEndpoints: distributedEndpoints,
 		StorageDistributedReplicas:  s.cfg.StorageDistributedReplicas,
 		StorageDefaultClass:         policy.DefaultClass,
 		StorageSupportedClasses:     config.SupportedStorageClasses(),
@@ -161,6 +165,34 @@ func (s *Service) Snapshot(ctx context.Context) (Snapshot, error) {
 		OIDCDefaultRole:             oidcSettings.DefaultRole,
 		OIDCRoleMap:                 copyRoleMap(oidcSettings.RoleMap),
 	}, nil
+}
+
+func (s *Service) ResolveDistributedEndpoints(ctx context.Context) ([]string, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT endpoint
+		FROM storage_nodes
+		ORDER BY name ASC, endpoint ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	endpoints := make([]string, 0)
+	for rows.Next() {
+		var endpoint string
+		if err := rows.Scan(&endpoint); err != nil {
+			return nil, err
+		}
+		endpoints = append(endpoints, strings.TrimSpace(endpoint))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(endpoints) > 0 {
+		return endpoints, nil
+	}
+	return append([]string(nil), s.cfg.StorageDistributedEndpoints...), nil
 }
 
 func (s *Service) ResolveMalwareSettings(ctx context.Context) (MalwareSettings, error) {
@@ -459,13 +491,13 @@ func (s *Service) UpdateStoragePolicy(ctx context.Context, defaultClass string, 
 	standardReplicas := replicas["standard"]
 	reducedReplicas := replicas["reduced-redundancy"]
 	archiveReplicas := replicas["archive-ready"]
-	if err := s.validateReplicaSetting(standardReplicas); err != nil {
+	if err := s.validateReplicaSetting(ctx, standardReplicas); err != nil {
 		return StoragePolicy{}, fmt.Errorf("standard replicas: %w", err)
 	}
-	if err := s.validateReplicaSetting(reducedReplicas); err != nil {
+	if err := s.validateReplicaSetting(ctx, reducedReplicas); err != nil {
 		return StoragePolicy{}, fmt.Errorf("reduced redundancy replicas: %w", err)
 	}
-	if err := s.validateReplicaSetting(archiveReplicas); err != nil {
+	if err := s.validateReplicaSetting(ctx, archiveReplicas); err != nil {
 		return StoragePolicy{}, fmt.Errorf("archive ready replicas: %w", err)
 	}
 	if _, err := s.db.Exec(ctx, `
@@ -538,12 +570,19 @@ func (s *Service) ensureDeploymentSetup(ctx context.Context) error {
 	return err
 }
 
-func (s *Service) validateReplicaSetting(value int) error {
+func (s *Service) validateReplicaSetting(ctx context.Context, value int) error {
 	if value <= 0 {
 		return fmt.Errorf("must be greater than zero")
 	}
-	if s.cfg.StorageBackend == "distributed" && len(s.cfg.StorageDistributedEndpoints) > 0 && value > len(s.cfg.StorageDistributedEndpoints) {
-		return fmt.Errorf("cannot exceed configured storage endpoints")
+	if s.cfg.StorageBackend == "distributed" {
+		configuredEndpointCount := len(s.cfg.StorageDistributedEndpoints)
+		var registeredEndpointCount int
+		if err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM storage_nodes`).Scan(&registeredEndpointCount); err == nil && registeredEndpointCount > configuredEndpointCount {
+			configuredEndpointCount = registeredEndpointCount
+		}
+		if configuredEndpointCount > 0 && value > configuredEndpointCount {
+			return fmt.Errorf("cannot exceed registered storage endpoints")
+		}
 	}
 	return nil
 }

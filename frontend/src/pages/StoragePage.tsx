@@ -44,15 +44,36 @@ type DashboardSummary = {
   rebalanceGapCount: number;
 };
 
+type MigrationStatus = {
+  pendingLocalObjects: number;
+  distributedObjects: number;
+};
+
+type MigrationHistoryItem = {
+  actor: string;
+  action: string;
+  outcome: string;
+  createdAt: string;
+  detail?: {
+    migratedCount?: number;
+    pendingLocalObjects?: number;
+    distributedObjects?: number;
+  };
+};
+
 export function StoragePage() {
   const [nodes, setNodes] = useState<StorageNode[]>([]);
   const [placements, setPlacements] = useState<Placement[]>([]);
   const [settings, setSettings] = useState<SettingsSnapshot | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [migrationStatus, setMigrationStatus] = useState<MigrationStatus | null>(null);
+  const [migrationHistory, setMigrationHistory] = useState<MigrationHistoryItem[]>([]);
   const [keyFilter, setKeyFilter] = useState("");
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [updatingNodeId, setUpdatingNodeId] = useState("");
   const [repinningNodeId, setRepinningNodeId] = useState("");
+  const [migrating, setMigrating] = useState(false);
   const [newNodeName, setNewNodeName] = useState("");
   const [newNodeEndpoint, setNewNodeEndpoint] = useState("");
   const [newNodeZone, setNewNodeZone] = useState("");
@@ -64,12 +85,16 @@ export function StoragePage() {
       api<{ items?: Placement[] }>(placementQuery),
       api<SettingsSnapshot>("/settings"),
       api<DashboardSummary>("/dashboard"),
+      api<MigrationStatus>("/storage/migration-status"),
+      api<{ items?: MigrationHistoryItem[] }>("/storage/migrations/history?limit=10"),
     ])
-      .then(([nodeResult, placementResult, settingsResult, dashboardResult]) => {
+      .then(([nodeResult, placementResult, settingsResult, dashboardResult, migrationResult, historyResult]) => {
         setNodes(nodeResult.items ?? []);
         setPlacements(placementResult.items ?? []);
         setSettings(settingsResult);
         setSummary(dashboardResult);
+        setMigrationStatus(migrationResult);
+        setMigrationHistory(historyResult.items ?? []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Unable to load storage topology"));
   };
@@ -81,6 +106,7 @@ export function StoragePage() {
   const updateNodeState = async (nodeId: string, operatorState: string) => {
     setUpdatingNodeId(nodeId);
     setError("");
+    setNotice("");
     try {
       await api(`/storage/nodes/${nodeId}`, {
         method: "PATCH",
@@ -100,6 +126,7 @@ export function StoragePage() {
       return;
     }
     setError("");
+    setNotice("");
     try {
       await api("/storage/nodes", {
         method: "POST",
@@ -122,6 +149,7 @@ export function StoragePage() {
   const repinNodeTLSIdentity = async (nodeId: string) => {
     setRepinningNodeId(nodeId);
     setError("");
+    setNotice("");
     try {
       await api(`/storage/nodes/${nodeId}/tls/re-pin`, { method: "POST" });
       await load();
@@ -129,6 +157,28 @@ export function StoragePage() {
       setError(err instanceof Error ? err.message : "Unable to re-pin node TLS identity");
     } finally {
       setRepinningNodeId("");
+    }
+  };
+
+  const migrateLocalObjects = async () => {
+    setMigrating(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await api<{ migratedCount: number; pendingLocalObjects: number; distributedObjects: number }>("/storage/migrations/local-to-distributed", {
+        method: "POST",
+        body: JSON.stringify({ limit: 100 }),
+      });
+      setNotice(
+        result.migratedCount > 0
+          ? `Migrated ${result.migratedCount} objects. ${result.pendingLocalObjects} local objects remain.`
+          : "No local objects were migrated in this pass.",
+      );
+      await load();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to migrate local objects");
+    } finally {
+      setMigrating(false);
     }
   };
 
@@ -142,6 +192,7 @@ export function StoragePage() {
       </div>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">{error}</div> : null}
+      {notice ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{notice}</div> : null}
 
       <section className="grid gap-4 md:grid-cols-3">
         <MetricCard label="Configured Nodes" value={String(nodes.length)} />
@@ -151,6 +202,49 @@ export function StoragePage() {
         <MetricCard label="Rebalance Gaps" value={String(summary?.rebalanceGapCount ?? 0)} />
         <MetricCard label="Recent Placements" value={String(placements.length)} />
       </section>
+
+      {settings?.storageBackend === "distributed" ? (
+        <section className="rounded-3xl border border-slate-200 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <h3 className="text-lg font-semibold text-ink">Local Object Migration</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                Migrate older locally stored objects into the live distributed node set after the cluster is already running. This lets us adopt remote storage without
+                editing backend env vars and restarting the stack.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => void migrateLocalObjects()}
+              disabled={migrating || (migrationStatus?.pendingLocalObjects ?? 0) === 0}
+              className="rounded-full bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {migrating ? "Migrating..." : "Migrate 100 Local Objects"}
+            </button>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <PolicyCard title="Pending Local Objects" value={String(migrationStatus?.pendingLocalObjects ?? 0)} />
+            <PolicyCard title="Distributed Objects" value={String(migrationStatus?.distributedObjects ?? 0)} />
+          </div>
+          <div className="mt-4 space-y-3">
+            <h4 className="text-sm font-semibold text-ink">Recent Migration Runs</h4>
+            {migrationHistory.length ? (
+              migrationHistory.map((item, index) => (
+                <div key={`${item.createdAt}-${index}`} className="rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
+                  <div className="font-medium text-ink">
+                    {item.detail?.migratedCount ?? 0} objects migrated by {item.actor || "operator"}
+                  </div>
+                  <div className="mt-1">
+                    {new Date(item.createdAt).toLocaleString()} | remaining local objects: {item.detail?.pendingLocalObjects ?? 0}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-2xl bg-slate-50 px-4 py-4 text-sm text-slate-500">No migration runs recorded yet.</div>
+            )}
+          </div>
+        </section>
+      ) : null}
 
       <section className="rounded-3xl border border-slate-200 p-5">
         <h3 className="text-lg font-semibold text-ink">Placement Policy</h3>
@@ -179,7 +273,10 @@ export function StoragePage() {
       {settings?.storageBackend === "distributed" ? (
         <section className="rounded-3xl border border-slate-200 p-5">
           <h3 className="text-lg font-semibold text-ink">Node Admission</h3>
-          <p className="mt-1 text-sm text-slate-500">Register a new storage node in maintenance mode before activating it for replica placement.</p>
+          <p className="mt-1 text-sm text-slate-500">
+            Register a new storage node in maintenance mode before activating it for replica placement. HarborShield now reads the distributed node catalog live from the
+            control plane, so endpoint changes here do not require an API or worker restart.
+          </p>
           <div className="mt-4 grid gap-3 md:grid-cols-3">
             <input
               value={newNodeName}

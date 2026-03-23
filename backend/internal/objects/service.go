@@ -67,7 +67,8 @@ type PutInput struct {
 
 type Service struct {
 	db                  *pgxpool.Pool
-	storage             storage.BlobStore
+	localStorage        storage.BlobStore
+	distributedStorage  *storage.DistributedStore
 	tenant              string
 	quotas              *quotas.Service
 	storageBackend      string
@@ -77,10 +78,16 @@ type Service struct {
 	settings            *settings.Service
 }
 
-func New(db *pgxpool.Pool, blobStore storage.BlobStore, tenant string, quotaService *quotas.Service, storageBackend string, placementEndpoints []string, placementReplicas int, defaultStorageClass string, settingsSvc *settings.Service) *Service {
+type MigrationStatus struct {
+	PendingLocalObjects int64 `json:"pendingLocalObjects"`
+	DistributedObjects  int64 `json:"distributedObjects"`
+}
+
+func New(db *pgxpool.Pool, localStore storage.BlobStore, distributedStore *storage.DistributedStore, tenant string, quotaService *quotas.Service, storageBackend string, placementEndpoints []string, placementReplicas int, defaultStorageClass string, settingsSvc *settings.Service) *Service {
 	return &Service{
 		db:                  db,
-		storage:             blobStore,
+		localStorage:        localStore,
+		distributedStorage:  distributedStore,
 		tenant:              tenant,
 		quotas:              quotaService,
 		storageBackend:      storageBackend,
@@ -140,11 +147,15 @@ func (s *Service) Put(ctx context.Context, bucketID string, input PutInput) (Met
 	if err != nil {
 		return Metadata{}, err
 	}
-	if distributedStore, ok := s.storage.(*storage.DistributedStore); ok && s.storageBackend == "distributed" {
-		if err := distributedStore.PutToEndpoints(ctx, location, bytes.NewReader(payload), selectedEndpoints); err != nil {
+	writeBackend := s.resolveWriteBackend(selectedEndpoints)
+	if writeBackend == "distributed" {
+		if s.distributedStorage == nil {
+			return Metadata{}, fmt.Errorf("distributed storage backend is unavailable")
+		}
+		if err := s.distributedStorage.PutToEndpoints(ctx, location, bytes.NewReader(payload), selectedEndpoints); err != nil {
 			return Metadata{}, err
 		}
-	} else if err := s.storage.Put(ctx, location, bytes.NewReader(payload)); err != nil {
+	} else if err := s.localStorage.Put(ctx, location, bytes.NewReader(payload)); err != nil {
 		return Metadata{}, err
 	}
 
@@ -166,10 +177,10 @@ func (s *Service) Put(ctx context.Context, bucketID string, input PutInput) (Met
 	}
 
 	err = tx.QueryRow(ctx, `
-		INSERT INTO objects (bucket_id, object_key, version_id, is_latest, is_delete_marker, size_bytes, checksum_sha256, etag, content_type, cache_control, content_disposition, content_encoding, user_metadata, object_tags, storage_path, created_by, retention_until, lifecycle_delete_at, scan_status)
-		VALUES ($1, $2, gen_random_uuid(), TRUE, FALSE, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, NULLIF($13, '')::uuid, $14, $15, 'pending-scan')
+		INSERT INTO objects (bucket_id, object_key, version_id, is_latest, is_delete_marker, size_bytes, checksum_sha256, etag, content_type, cache_control, content_disposition, content_encoding, user_metadata, object_tags, storage_path, storage_backend, created_by, retention_until, lifecycle_delete_at, scan_status)
+		VALUES ($1, $2, gen_random_uuid(), TRUE, FALSE, $3, $4, $5, $6, $7, $8, $9, $10::jsonb, $11::jsonb, $12, $13, NULLIF($14, '')::uuid, $15, $16, 'pending-scan')
 		RETURNING id::text, bucket_id::text, object_key, version_id::text, size_bytes, etag, content_type, cache_control, content_disposition, content_encoding, user_metadata, object_tags, storage_path, scan_status, is_latest, is_delete_marker, legal_hold, COALESCE(retention_until::text, ''), COALESCE(lifecycle_delete_at::text, ''), created_at::text
-	`, bucketID, input.Key, len(payload), etag, etag, defaultContentType(input.ContentType), input.CacheControl, input.ContentDisposition, input.ContentEncoding, userMetadata, objectTags, location, input.CreatedBy, input.RetentionUntil, input.LifecycleDeleteAt).
+	`, bucketID, input.Key, len(payload), etag, etag, defaultContentType(input.ContentType), input.CacheControl, input.ContentDisposition, input.ContentEncoding, userMetadata, objectTags, location, writeBackend, input.CreatedBy, input.RetentionUntil, input.LifecycleDeleteAt).
 		Scan(&item.ID, &item.BucketID, &item.Key, &item.VersionID, &item.SizeBytes, &item.ETag, &item.ContentType, &item.CacheControl, &item.ContentDisposition, &item.ContentEncoding, &rawUserMetadata, &rawTags, &item.StoragePath, &item.ScanStatus, &item.IsLatest, &item.IsDeleteMarker, &item.LegalHold, &item.RetentionUntil, &item.LifecycleDeleteAt, &item.CreatedAt)
 	if err != nil {
 		return Metadata{}, err
@@ -193,7 +204,7 @@ func (s *Service) Put(ctx context.Context, bucketID string, input PutInput) (Met
 }
 
 func (s *Service) recordPlacements(ctx context.Context, tx pgx.Tx, objectID, locator string, placementEndpoints []string) error {
-	if s.storageBackend != "distributed" || len(s.placementEndpoints) == 0 {
+	if s.storageBackend != "distributed" || len(placementEndpoints) == 0 {
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `DELETE FROM object_placements WHERE object_id = $1::uuid`, objectID); err != nil {
@@ -225,7 +236,14 @@ func (s *Service) recordPlacements(ctx context.Context, tx pgx.Tx, objectID, loc
 }
 
 func (s *Service) resolvePlacementEndpoints(ctx context.Context, bucketID string) ([]string, error) {
-	if s.storageBackend != "distributed" || len(s.placementEndpoints) == 0 {
+	if s.storageBackend != "distributed" {
+		return nil, nil
+	}
+	availableEndpoints, err := s.activePlacementEndpoints(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(availableEndpoints) == 0 {
 		return nil, nil
 	}
 	replicaTarget := s.placementReplicas
@@ -261,10 +279,39 @@ func (s *Service) resolvePlacementEndpoints(ctx context.Context, bucketID string
 			}
 		}
 	}
-	if replicaTarget <= 0 || replicaTarget > len(s.placementEndpoints) {
-		replicaTarget = len(s.placementEndpoints)
+	if replicaTarget <= 0 || replicaTarget > len(availableEndpoints) {
+		replicaTarget = len(availableEndpoints)
 	}
-	return append([]string(nil), s.placementEndpoints[:replicaTarget]...), nil
+	return append([]string(nil), availableEndpoints[:replicaTarget]...), nil
+}
+
+func (s *Service) activePlacementEndpoints(ctx context.Context) ([]string, error) {
+	rows, err := s.db.Query(ctx, `
+		SELECT endpoint
+		FROM storage_nodes
+		WHERE operator_state = 'active'
+		ORDER BY name ASC, endpoint ASC
+	`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	endpoints := make([]string, 0)
+	for rows.Next() {
+		var endpoint string
+		if err := rows.Scan(&endpoint); err != nil {
+			return nil, err
+		}
+		endpoints = append(endpoints, strings.TrimSpace(endpoint))
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(endpoints) > 0 {
+		return endpoints, nil
+	}
+	return append([]string(nil), s.placementEndpoints...), nil
 }
 
 func (s *Service) lookupExistingObject(ctx context.Context, bucketID, key string) (int64, bool, error) {
@@ -418,7 +465,12 @@ func (s *Service) getVersion(ctx context.Context, bucketID, key, versionID strin
 	if err != nil {
 		return Metadata{}, nil, err
 	}
-	reader, err := s.storage.Get(ctx, item.StoragePath)
+	var storageBackend string
+	err = s.db.QueryRow(ctx, `SELECT COALESCE(storage_backend, 'filesystem') FROM objects WHERE id = $1::uuid`, item.ID).Scan(&storageBackend)
+	if err != nil {
+		return Metadata{}, nil, err
+	}
+	reader, err := s.storeForBackend(storageBackend).Get(ctx, item.StoragePath)
 	if err != nil {
 		return Metadata{}, nil, err
 	}
@@ -470,14 +522,14 @@ func (s *Service) DeleteVersion(ctx context.Context, bucketID, key, versionID st
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var objectID, storagePath string
+	var objectID, storagePath, storageBackend string
 	var retentionUntil *time.Time
 	var legalHold, isLatest bool
 	if err := tx.QueryRow(ctx, `
-		SELECT id::text, COALESCE(storage_path, ''), retention_until, legal_hold, is_latest
+		SELECT id::text, COALESCE(storage_path, ''), COALESCE(storage_backend, 'filesystem'), retention_until, legal_hold, is_latest
 		FROM objects
 		WHERE bucket_id = $1 AND object_key = $2 AND version_id = $3::uuid AND deleted_at IS NULL
-	`, bucketID, key, versionID).Scan(&objectID, &storagePath, &retentionUntil, &legalHold, &isLatest); err != nil {
+	`, bucketID, key, versionID).Scan(&objectID, &storagePath, &storageBackend, &retentionUntil, &legalHold, &isLatest); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrVersionNotFound
 		}
@@ -519,7 +571,7 @@ func (s *Service) DeleteVersion(ctx context.Context, bucketID, key, versionID st
 		return err
 	}
 	if storagePath != "" {
-		if err := s.storage.Delete(ctx, storagePath); err != nil {
+		if err := s.storeForBackend(storageBackend).Delete(ctx, storagePath); err != nil {
 			return err
 		}
 	}
@@ -624,7 +676,8 @@ func (s *Service) PurgeDeletedBefore(ctx context.Context, cutoff time.Time) (int
 
 	purged := 0
 	for _, item := range candidates {
-		if err := s.storage.Delete(ctx, item.path); err != nil {
+		backend := s.lookupStoredBackend(ctx, item.id)
+		if err := s.storeForBackend(backend).Delete(ctx, item.path); err != nil {
 			return purged, err
 		}
 		tag, err := s.db.Exec(ctx, `DELETE FROM objects WHERE id = $1::uuid AND deleted_at IS NOT NULL AND deleted_at <= $2`, item.id, cutoff)
@@ -636,6 +689,135 @@ func (s *Service) PurgeDeletedBefore(ctx context.Context, cutoff time.Time) (int
 		}
 	}
 	return purged, nil
+}
+
+func (s *Service) MigrationStatus(ctx context.Context) (MigrationStatus, error) {
+	var status MigrationStatus
+	err := s.db.QueryRow(ctx, `
+		SELECT
+			COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') <> 'distributed'),
+			COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') = 'distributed')
+		FROM objects
+	`).Scan(&status.PendingLocalObjects, &status.DistributedObjects)
+	return status, err
+}
+
+func (s *Service) MigrateLocalObjectsToDistributed(ctx context.Context, limit int) (int64, error) {
+	if s.distributedStorage == nil {
+		return 0, fmt.Errorf("distributed storage backend is unavailable")
+	}
+	if limit <= 0 || limit > 1000 {
+		limit = 100
+	}
+	rows, err := s.db.Query(ctx, `
+		SELECT id::text, bucket_id::text, storage_path
+		FROM objects
+		WHERE deleted_at IS NULL
+		  AND is_delete_marker = FALSE
+		  AND storage_path <> ''
+		  AND COALESCE(storage_backend, 'filesystem') <> 'distributed'
+		ORDER BY created_at ASC
+		LIMIT $1
+	`, limit)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	type candidate struct {
+		id       string
+		bucketID string
+		path     string
+	}
+	candidates := make([]candidate, 0)
+	for rows.Next() {
+		var item candidate
+		if err := rows.Scan(&item.id, &item.bucketID, &item.path); err != nil {
+			return 0, err
+		}
+		candidates = append(candidates, item)
+	}
+	if err := rows.Err(); err != nil {
+		return 0, err
+	}
+
+	var migrated int64
+	for _, item := range candidates {
+		selectedEndpoints, err := s.resolvePlacementEndpoints(ctx, item.bucketID)
+		if err != nil {
+			return migrated, err
+		}
+		if len(selectedEndpoints) == 0 {
+			return migrated, fmt.Errorf("no active distributed storage nodes are available for migration")
+		}
+		reader, err := s.localStorage.Get(ctx, item.path)
+		if err != nil {
+			return migrated, err
+		}
+		payload, err := io.ReadAll(reader)
+		_ = reader.Close()
+		if err != nil {
+			return migrated, err
+		}
+		if err := s.distributedStorage.PutToEndpoints(ctx, item.path, bytes.NewReader(payload), selectedEndpoints); err != nil {
+			return migrated, err
+		}
+
+		tx, err := s.db.Begin(ctx)
+		if err != nil {
+			return migrated, err
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE objects
+			SET storage_backend = 'distributed',
+			    updated_at = NOW()
+			WHERE id = $1::uuid
+		`, item.id); err != nil {
+			_ = tx.Rollback(ctx)
+			return migrated, err
+		}
+		if err := s.recordPlacements(ctx, tx, item.id, item.path, selectedEndpoints); err != nil {
+			_ = tx.Rollback(ctx)
+			return migrated, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return migrated, err
+		}
+		_ = s.localStorage.Delete(ctx, item.path)
+		migrated++
+	}
+	return migrated, nil
+}
+
+func (s *Service) resolveWriteBackend(selectedEndpoints []string) string {
+	if s.storageBackend == "distributed" && s.distributedStorage != nil && len(selectedEndpoints) > 0 {
+		return "distributed"
+	}
+	return "local"
+}
+
+func (s *Service) storeForBackend(backend string) storage.BlobStore {
+	if normalizeStoredBackend(backend) == "distributed" && s.distributedStorage != nil {
+		return s.distributedStorage
+	}
+	return s.localStorage
+}
+
+func (s *Service) lookupStoredBackend(ctx context.Context, objectID string) string {
+	var backend string
+	if err := s.db.QueryRow(ctx, `SELECT COALESCE(storage_backend, 'filesystem') FROM objects WHERE id = $1::uuid`, objectID).Scan(&backend); err != nil {
+		return "local"
+	}
+	return backend
+}
+
+func normalizeStoredBackend(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "distributed":
+		return "distributed"
+	default:
+		return "local"
+	}
 }
 
 func (s *Service) Head(ctx context.Context, bucketID, key string) (Metadata, error) {

@@ -7,3 +7,5 @@ smoke-upload.txt
 *.log
 artifacts/
 tmp_metrics_sample.txt
+deploy/certs/blobnode/*
+!deploy/certs/blobnode/.gitkeep

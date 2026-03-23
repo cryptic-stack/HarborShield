@@ -102,12 +102,12 @@ services:
       BLOBNODE_PORT: 9100
       BLOBNODE_ROOT: /blobdata
       BLOBNODE_API_URL: http://api:8080
-      BLOBNODE_ADVERTISE_URL: http://blobnode-a:9100
+      BLOBNODE_ADVERTISE_URL: ${BLOBNODE_ADVERTISE_SCHEME:-http}://blobnode-a:9100
     volumes:
       - blobnode_a_data:/blobdata
       - ${BLOBNODE_TLS_CERTS_DIR:-./deploy/certs/blobnode}:/blobnode-certs:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9100/healthz"]
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- ${BLOBNODE_HEALTHCHECK_SCHEME:-http}://localhost:9100/healthz >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -127,12 +127,12 @@ services:
       BLOBNODE_PORT: 9100
       BLOBNODE_ROOT: /blobdata
       BLOBNODE_API_URL: http://api:8080
-      BLOBNODE_ADVERTISE_URL: http://blobnode-b:9100
+      BLOBNODE_ADVERTISE_URL: ${BLOBNODE_ADVERTISE_SCHEME:-http}://blobnode-b:9100
     volumes:
       - blobnode_b_data:/blobdata
       - ${BLOBNODE_TLS_CERTS_DIR:-./deploy/certs/blobnode}:/blobnode-certs:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9100/healthz"]
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- ${BLOBNODE_HEALTHCHECK_SCHEME:-http}://localhost:9100/healthz >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -152,12 +152,12 @@ services:
       BLOBNODE_PORT: 9100
       BLOBNODE_ROOT: /blobdata
       BLOBNODE_API_URL: http://api:8080
-      BLOBNODE_ADVERTISE_URL: http://blobnode-c:9100
+      BLOBNODE_ADVERTISE_URL: ${BLOBNODE_ADVERTISE_SCHEME:-http}://blobnode-c:9100
     volumes:
       - blobnode_c_data:/blobdata
       - ${BLOBNODE_TLS_CERTS_DIR:-./deploy/certs/blobnode}:/blobnode-certs:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9100/healthz"]
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- ${BLOBNODE_HEALTHCHECK_SCHEME:-http}://localhost:9100/healthz >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -177,12 +177,12 @@ services:
       BLOBNODE_PORT: 9100
       BLOBNODE_ROOT: /blobdata
       BLOBNODE_API_URL: http://api:8080
-      BLOBNODE_ADVERTISE_URL: http://blobnode-d:9100
+      BLOBNODE_ADVERTISE_URL: ${BLOBNODE_ADVERTISE_SCHEME:-http}://blobnode-d:9100
     volumes:
       - blobnode_d_data:/blobdata
       - ${BLOBNODE_TLS_CERTS_DIR:-./deploy/certs/blobnode}:/blobnode-certs:ro
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:9100/healthz"]
+      test: ["CMD-SHELL", "wget --no-check-certificate -qO- ${BLOBNODE_HEALTHCHECK_SCHEME:-http}://localhost:9100/healthz >/dev/null 2>&1 || exit 1"]
       interval: 15s
       timeout: 5s
       retries: 10

@@ -218,8 +218,8 @@ func (s *TopologyService) JoinNode(ctx context.Context, rawToken, name, endpoint
 		return JoinEnrollment{}, err
 	}
 	item.RPCToken = rpcToken
-	if s.store != nil {
-		s.store.SetEndpointToken(endpoint, rpcToken)
+	if err := s.syncStoreConfiguration(ctx); err != nil {
+		return JoinEnrollment{}, err
 	}
 	return item, nil
 }
@@ -244,6 +244,9 @@ func (s *TopologyService) RegisterNode(ctx context.Context, name, endpoint, zone
 		VALUES ($1, $2, 'distributed', $3, 'configured', $4, '{"configured":false}'::jsonb, NOW())
 	`, name, endpoint, zone, operatorState)
 	if err != nil {
+		return Node{}, err
+	}
+	if err := s.syncStoreConfiguration(ctx); err != nil {
 		return Node{}, err
 	}
 
@@ -290,7 +293,7 @@ func (s *TopologyService) SyncConfiguredNodes(ctx context.Context, endpoints []s
 			return err
 		}
 	}
-	return nil
+	return s.syncStoreConfiguration(ctx)
 }
 
 func (s *TopologyService) RefreshConfiguredNodes(ctx context.Context) (int64, error) {
@@ -1021,6 +1024,38 @@ func (s *TopologyService) syncStoreTokens(ctx context.Context) error {
 		s.store.SetEndpointToken(endpoint, token)
 	}
 	return rows.Err()
+}
+
+func (s *TopologyService) syncStoreConfiguration(ctx context.Context) error {
+	if s.store == nil {
+		return nil
+	}
+	if err := s.syncStoreTokens(ctx); err != nil {
+		return err
+	}
+	rows, err := s.db.Query(ctx, `
+		SELECT endpoint
+		FROM storage_nodes
+		ORDER BY name ASC, endpoint ASC
+	`)
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	endpoints := make([]string, 0)
+	for rows.Next() {
+		var endpoint string
+		if err := rows.Scan(&endpoint); err != nil {
+			return err
+		}
+		endpoints = append(endpoints, endpoint)
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	s.store.ReplaceEndpoints(endpoints)
+	return nil
 }
 
 func (s *TopologyService) generateRPCCredential() (plaintext, tokenHash, ciphertext string, err error) {

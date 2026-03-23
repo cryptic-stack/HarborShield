@@ -1198,6 +1198,39 @@ func Mount(r chi.Router, deps RouterDeps) {
 				middleware.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
 			})
 
+			r.Get("/storage/migration-status", func(w http.ResponseWriter, req *http.Request) {
+				if !authorize(w, req, deps.Authorizer, "settings.read", "*") {
+					return
+				}
+				status, err := deps.Objects.MigrationStatus(req.Context())
+				if err != nil {
+					middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				middleware.WriteJSON(w, http.StatusOK, status)
+			})
+
+			r.Get("/storage/migrations/history", func(w http.ResponseWriter, req *http.Request) {
+				if !authorize(w, req, deps.Authorizer, "settings.read", "*") {
+					return
+				}
+				limit := 20
+				if raw := req.URL.Query().Get("limit"); raw != "" {
+					if parsed, err := strconv.Atoi(raw); err == nil {
+						limit = parsed
+					}
+				}
+				items, err := deps.Audit.List(req.Context(), audit.ListFilter{
+					Action: "storage.migration.local-to-distributed",
+					Limit:  limit,
+				})
+				if err != nil {
+					middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				middleware.WriteJSON(w, http.StatusOK, map[string]any{"items": items})
+			})
+
 			r.Post("/storage/join-tokens", func(w http.ResponseWriter, req *http.Request) {
 				claims := middleware.ClaimsFromContext(req.Context())
 				if !authorize(w, req, deps.Authorizer, "storage.manage", "*") {
@@ -1335,6 +1368,47 @@ func Mount(r chi.Router, deps RouterDeps) {
 					},
 				})
 				middleware.WriteJSON(w, http.StatusOK, item)
+			})
+
+			r.Post("/storage/migrations/local-to-distributed", func(w http.ResponseWriter, req *http.Request) {
+				claims := middleware.ClaimsFromContext(req.Context())
+				if !authorize(w, req, deps.Authorizer, "storage.manage", "*") {
+					return
+				}
+				var body struct {
+					Limit int `json:"limit"`
+				}
+				if err := json.NewDecoder(req.Body).Decode(&body); err != nil && !errors.Is(err, io.EOF) {
+					middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+					return
+				}
+				migrated, err := deps.Objects.MigrateLocalObjectsToDistributed(req.Context(), body.Limit)
+				if err != nil {
+					middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				status, statusErr := deps.Objects.MigrationStatus(req.Context())
+				if statusErr != nil {
+					middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": statusErr.Error()})
+					return
+				}
+				_ = deps.Audit.Record(req.Context(), audit.Entry{
+					Actor:     claims.Email,
+					Action:    "storage.migration.local-to-distributed",
+					Resource:  "storage",
+					Outcome:   "success",
+					RequestID: req.Header.Get("X-Request-Id"),
+					Detail: map[string]any{
+						"migratedCount":       migrated,
+						"pendingLocalObjects": status.PendingLocalObjects,
+						"distributedObjects":  status.DistributedObjects,
+					},
+				})
+				middleware.WriteJSON(w, http.StatusOK, map[string]any{
+					"migratedCount":       migrated,
+					"pendingLocalObjects": status.PendingLocalObjects,
+					"distributedObjects":  status.DistributedObjects,
+				})
 			})
 
 			r.Get("/storage/placements", func(w http.ResponseWriter, req *http.Request) {

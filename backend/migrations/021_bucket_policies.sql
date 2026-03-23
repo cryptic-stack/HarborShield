@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS bucket_policies (
+    bucket_id UUID PRIMARY KEY REFERENCES buckets(id) ON DELETE CASCADE,
+    document JSONB NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);

@@ -1,0 +1,2 @@
+ALTER TABLE credentials
+ADD COLUMN IF NOT EXISTS secret_ciphertext TEXT NOT NULL DEFAULT '';

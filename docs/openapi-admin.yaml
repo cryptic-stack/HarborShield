@@ -1,0 +1,1397 @@
+openapi: 3.1.0
+info:
+  title: HarborShield Admin API
+  version: 0.2.0
+  description: >
+    Checked-in OpenAPI contract for the HarborShield admin plane. This file is
+    intended to match the live route inventory and the stable request shapes
+    used by the UI and automation clients.
+servers:
+  - url: /api/v1
+tags:
+  - name: Auth
+  - name: Buckets
+  - name: Objects
+  - name: Users
+  - name: Credentials
+  - name: Audit
+  - name: Roles
+  - name: Policies
+  - name: Events
+  - name: Malware
+  - name: Quotas
+  - name: Settings
+  - name: Dashboard
+  - name: Admin Tokens
+  - name: Health
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      summary: Log in with email and password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Authenticated session
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      summary: Exchange a refresh token for a new access token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [refreshToken]
+              properties:
+                refreshToken:
+                  type: string
+      responses:
+        "200":
+          description: Refreshed access token
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  accessToken:
+                    type: string
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/oidc:
+    get:
+      tags: [Auth]
+      summary: Return OIDC runtime status
+      responses:
+        "200":
+          description: OIDC status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  enabled:
+                    type: boolean
+                  configured:
+                    type: boolean
+                  loginReady:
+                    type: boolean
+                  issuerUrl:
+                    type: string
+                  clientId:
+                    type: string
+                  redirectUrl:
+                    type: string
+                  scopes:
+                    type: array
+                    items:
+                      type: string
+                  roleClaim:
+                    type: string
+                  defaultRole:
+                    type: string
+                  roleMappings:
+                    type: array
+                    items:
+                      type: string
+                  statusMessage:
+                    type: string
+                  nextStepMessage:
+                    type: string
+
+  /auth/oidc/start:
+    get:
+      tags: [Auth]
+      summary: Start OIDC login with a redirect
+      responses:
+        "302":
+          description: Redirect to the configured provider
+        "400":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Auth]
+      summary: Return the OIDC provider start URL
+      responses:
+        "200":
+          description: OIDC start URL
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  url:
+                    type: string
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /auth/oidc/callback:
+    get:
+      tags: [Auth]
+      summary: Complete OIDC login and return the browser bootstrap page
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: state
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: HTML page that stores the session and redirects the browser
+          content:
+            text/html:
+              schema:
+                type: string
+        "400":
+          $ref: "#/components/responses/Error"
+
+  /auth/me:
+    get:
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      summary: Return the current authenticated claims
+      responses:
+        "200":
+          description: Current claims
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /auth/change-password:
+    post:
+      tags: [Auth]
+      security:
+        - bearerAuth: []
+      summary: Change the current user's password
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [currentPassword, newPassword]
+              properties:
+                currentPassword:
+                  type: string
+                newPassword:
+                  type: string
+      responses:
+        "200":
+          description: Password updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+
+  /buckets:
+    get:
+      tags: [Buckets]
+      security:
+        - bearerAuth: []
+      summary: List buckets
+      responses:
+        "200":
+          description: Bucket list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Buckets]
+      security:
+        - bearerAuth: []
+      summary: Create a bucket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "201":
+          description: Created bucket
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects:
+    get:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: List objects in a bucket
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+        - in: query
+          name: prefix
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Soft-delete the latest version of an object
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+        - in: query
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        "204":
+          description: Object deleted
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects/versions:
+    get:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: List versions for an object key
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+        - in: query
+          name: key
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Version list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects/restore:
+    post:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Restore the latest restorable object version
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+      responses:
+        "200":
+          description: Restored object metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects/tags:
+    get:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Get tags for an object version
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+        - in: query
+          name: key
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: versionId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object tags
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: object
+                    additionalProperties:
+                      type: string
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+    put:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Replace tags for an object version
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [key]
+              properties:
+                key:
+                  type: string
+                versionId:
+                  type: string
+                tags:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "200":
+          description: Updated object metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects/copy:
+    post:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Copy an object into a destination bucket and key
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [sourceBucketId, sourceKey, destinationKey]
+              properties:
+                sourceBucketId:
+                  type: string
+                sourceKey:
+                  type: string
+                sourceVersionId:
+                  type: string
+                destinationKey:
+                  type: string
+                replaceMetadata:
+                  type: boolean
+                replaceTags:
+                  type: boolean
+                contentType:
+                  type: string
+                cacheControl:
+                  type: string
+                contentDisposition:
+                  type: string
+                contentEncoding:
+                  type: string
+                userMetadata:
+                  type: object
+                  additionalProperties:
+                    type: string
+                tags:
+                  type: object
+                  additionalProperties:
+                    type: string
+      responses:
+        "201":
+          description: Copied object metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects/upload:
+    post:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Upload an object through the admin plane
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                key:
+                  type: string
+                contentType:
+                  type: string
+      responses:
+        "201":
+          description: Uploaded object metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /buckets/{bucketID}/objects/download:
+    get:
+      tags: [Objects]
+      security:
+        - bearerAuth: []
+      summary: Download an object or specific version through the admin plane
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+        - in: query
+          name: key
+          required: true
+          schema:
+            type: string
+        - in: query
+          name: versionId
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Object bytes
+          content:
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /users:
+    get:
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      summary: List platform users
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /users/{userID}/role:
+    patch:
+      tags: [Users]
+      security:
+        - bearerAuth: []
+      summary: Update a platform user's fallback role
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /credentials:
+    get:
+      tags: [Credentials]
+      security:
+        - bearerAuth: []
+      summary: List S3 credentials
+      responses:
+        "200":
+          description: Credential list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Credentials]
+      security:
+        - bearerAuth: []
+      summary: Create an S3 credential
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                userId:
+                  type: string
+                role:
+                  type: string
+                description:
+                  type: string
+      responses:
+        "201":
+          description: Created credential
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /credentials/{accessKey}/role:
+    patch:
+      tags: [Credentials]
+      security:
+        - bearerAuth: []
+      summary: Update an S3 credential's fallback role
+      parameters:
+        - $ref: "#/components/parameters/AccessKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role:
+                  type: string
+      responses:
+        "200":
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /audit:
+    get:
+      tags: [Audit]
+      security:
+        - bearerAuth: []
+      summary: Search audit logs
+      parameters:
+        - in: query
+          name: actor
+          schema:
+            type: string
+        - in: query
+          name: action
+          schema:
+            type: string
+        - in: query
+          name: outcome
+          schema:
+            type: string
+        - in: query
+          name: query
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Audit results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /health:
+    get:
+      tags: [Health]
+      security:
+        - bearerAuth: []
+      summary: Return admin plane health
+      responses:
+        "200":
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      security:
+        - bearerAuth: []
+      summary: Return dashboard summary metrics
+      responses:
+        "200":
+          description: Dashboard summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /event-targets:
+    get:
+      tags: [Events]
+      security:
+        - bearerAuth: []
+      summary: List configured webhook targets
+      responses:
+        "200":
+          description: Event target list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Events]
+      security:
+        - bearerAuth: []
+      summary: Create a webhook target
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, endpointUrl]
+              properties:
+                name:
+                  type: string
+                endpointUrl:
+                  type: string
+                signingSecret:
+                  type: string
+                eventTypes:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        "201":
+          description: Created event target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /event-deliveries:
+    get:
+      tags: [Events]
+      security:
+        - bearerAuth: []
+      summary: List recent webhook delivery attempts
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delivery list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /malware-status:
+    get:
+      tags: [Malware]
+      security:
+        - bearerAuth: []
+      summary: List recent malware scan results
+      parameters:
+        - in: query
+          name: limit
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Malware status list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /settings:
+    get:
+      tags: [Settings]
+      security:
+        - bearerAuth: []
+      summary: Return the runtime settings snapshot
+      responses:
+        "200":
+          description: Settings snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /quotas:
+    get:
+      tags: [Quotas]
+      security:
+        - bearerAuth: []
+      summary: List bucket and user quota state
+      responses:
+        "200":
+          description: Quota state
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bucketItems:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+                  userItems:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /quotas/buckets/{bucketID}:
+    put:
+      tags: [Quotas]
+      security:
+        - bearerAuth: []
+      summary: Update quota settings for a bucket
+      parameters:
+        - $ref: "#/components/parameters/BucketID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxBytes:
+                  type: integer
+                maxObjects:
+                  type: integer
+                warningThresholdPercent:
+                  type: integer
+      responses:
+        "200":
+          description: Quota updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /quotas/users/{userID}:
+    put:
+      tags: [Quotas]
+      security:
+        - bearerAuth: []
+      summary: Update quota settings for a user
+      parameters:
+        - $ref: "#/components/parameters/UserID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                maxBytes:
+                  type: integer
+                warningThresholdPercent:
+                  type: integer
+      responses:
+        "200":
+          description: Quota updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /roles:
+    get:
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      summary: List built-in roles
+      responses:
+        "200":
+          description: Role list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /roles/{roleName}/statements:
+    get:
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      summary: List policy statements for a role
+      parameters:
+        - $ref: "#/components/parameters/RoleName"
+      responses:
+        "200":
+          description: Statement list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      summary: Create a policy statement for a role
+      parameters:
+        - $ref: "#/components/parameters/RoleName"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleStatementWrite"
+      responses:
+        "201":
+          description: Created statement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /roles/{roleName}/statements/{statementID}:
+    patch:
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      summary: Update a policy statement for a role
+      parameters:
+        - $ref: "#/components/parameters/RoleName"
+        - $ref: "#/components/parameters/StatementID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RoleStatementWrite"
+      responses:
+        "200":
+          description: Updated statement
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [Roles]
+      security:
+        - bearerAuth: []
+      summary: Delete a policy statement from a role
+      parameters:
+        - $ref: "#/components/parameters/RoleName"
+        - $ref: "#/components/parameters/StatementID"
+      responses:
+        "204":
+          description: Statement deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /role-bindings:
+    get:
+      tags: [Policies]
+      security:
+        - bearerAuth: []
+      summary: List role bindings
+      responses:
+        "200":
+          description: Binding list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Policies]
+      security:
+        - bearerAuth: []
+      summary: Create or update a scoped role binding
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectType, subjectId, roleName]
+              properties:
+                subjectType:
+                  type: string
+                subjectId:
+                  type: string
+                resource:
+                  type: string
+                roleName:
+                  type: string
+      responses:
+        "201":
+          description: Created or updated binding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+
+  /role-bindings/{bindingID}:
+    delete:
+      tags: [Policies]
+      security:
+        - bearerAuth: []
+      summary: Delete a role binding
+      parameters:
+        - $ref: "#/components/parameters/BindingID"
+      responses:
+        "204":
+          description: Binding deleted
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+
+  /policy-evaluate:
+    post:
+      tags: [Policies]
+      security:
+        - bearerAuth: []
+      summary: Explain a policy decision for a subject, action, and resource
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subjectType, subjectId, fallbackRole, action, resource]
+              properties:
+                subjectType:
+                  type: string
+                subjectId:
+                  type: string
+                fallbackRole:
+                  type: string
+                action:
+                  type: string
+                resource:
+                  type: string
+      responses:
+        "200":
+          description: Authorization explanation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+  /admin-tokens:
+    get:
+      tags: [Admin Tokens]
+      security:
+        - bearerAuth: []
+      summary: List admin API tokens
+      responses:
+        "200":
+          description: Admin token list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ItemsResponse"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+    post:
+      tags: [Admin Tokens]
+      security:
+        - bearerAuth: []
+      summary: Create an admin API token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                role:
+                  type: string
+                description:
+                  type: string
+                expiresInDays:
+                  type: integer
+      responses:
+        "201":
+          description: Created admin token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FlexibleObject"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "403":
+          $ref: "#/components/responses/Error"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT or opaque admin token
+
+  parameters:
+    BucketID:
+      in: path
+      name: bucketID
+      required: true
+      schema:
+        type: string
+    UserID:
+      in: path
+      name: userID
+      required: true
+      schema:
+        type: string
+    AccessKey:
+      in: path
+      name: accessKey
+      required: true
+      schema:
+        type: string
+    RoleName:
+      in: path
+      name: roleName
+      required: true
+      schema:
+        type: string
+    StatementID:
+      in: path
+      name: statementID
+      required: true
+      schema:
+        type: string
+    BindingID:
+      in: path
+      name: bindingID
+      required: true
+      schema:
+        type: string
+
+  responses:
+    Error:
+      description: Error response
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+    StatusResponse:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+    Session:
+      type: object
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        mustChangePassword:
+          type: boolean
+        user:
+          type: object
+          additionalProperties: true
+    FlexibleObject:
+      type: object
+      additionalProperties: true
+    ItemsResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+    RoleStatementWrite:
+      type: object
+      required: [action, resource, effect]
+      properties:
+        action:
+          type: string
+        resource:
+          type: string
+        effect:
+          type: string
+        conditions:
+          type: object
+          additionalProperties:
+            type: string

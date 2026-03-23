@@ -1,0 +1,2 @@
+ALTER TABLE objects
+ADD COLUMN IF NOT EXISTS object_tags JSONB NOT NULL DEFAULT '{}'::jsonb;

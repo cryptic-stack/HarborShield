@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "common.ps1")
 
 Set-Location $ProjectRoot
 
@@ -62,8 +63,9 @@ try {
     description = "sdk smoke credential"
   } | ConvertTo-Json -Compress)
 
-  $payloadPath = Join-Path $env:TEMP "harborshield-sdk-smoke.txt"
-  $downloadPath = Join-Path $env:TEMP "harborshield-sdk-smoke-down.txt"
+  $tempDir = Get-TempDir
+  $payloadPath = Join-Path $tempDir "harborshield-sdk-smoke.txt"
+  $downloadPath = Join-Path $tempDir "harborshield-sdk-smoke-down.txt"
   "hello from boto3 smoke" | Set-Content -Path $payloadPath -NoNewline
 
   $python = @'

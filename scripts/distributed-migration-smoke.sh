@@ -20,13 +20,21 @@ api_json() {
   method="$1"
   path="$2"
   body="${3-}"
+  case "$path" in
+    /api/*)
+      api_path="$path"
+      ;;
+    *)
+      api_path="/api/v1$path"
+      ;;
+  esac
   if [ -n "$body" ]; then
-    curl -fsS -X "$method" "$BASE_URL$path" \
+    curl -fsS -X "$method" "$BASE_URL$api_path" \
       -H "Authorization: Bearer $TOKEN" \
       -H 'Content-Type: application/json' \
       -d "$body"
   else
-    curl -fsS -X "$method" "$BASE_URL$path" \
+    curl -fsS -X "$method" "$BASE_URL$api_path" \
       -H "Authorization: Bearer $TOKEN"
   fi
 }

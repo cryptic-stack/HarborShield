@@ -19,6 +19,31 @@ if ([string]::IsNullOrWhiteSpace($ProjectRoot)) {
 }
 Set-Location $ProjectRoot
 
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+
+function New-ZipFromDirectoryContents {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$SourceDirectory,
+    [Parameter(Mandatory = $true)]
+    [string]$DestinationPath
+  )
+
+  $sourceRoot = (Resolve-Path $SourceDirectory).Path
+  $zipArchive = [System.IO.Compression.ZipFile]::Open($DestinationPath, [System.IO.Compression.ZipArchiveMode]::Create)
+  try {
+    foreach ($file in Get-ChildItem -Path $sourceRoot -File -Recurse -Force) {
+      $relativePath = $file.FullName.Substring($sourceRoot.Length).TrimStart('\', '/')
+      $entryPath = $relativePath -replace "\\", "/"
+      [System.IO.Compression.ZipFileExtensions]::CreateEntryFromFile($zipArchive, $file.FullName, $entryPath, [System.IO.Compression.CompressionLevel]::Optimal) | Out-Null
+    }
+  }
+  finally {
+    $zipArchive.Dispose()
+  }
+}
+
 $releaseName = "HarborShield-$Version"
 $outputRoot = Join-Path $ProjectRoot "artifacts/releases"
 $stagingRoot = Join-Path $outputRoot $releaseName
@@ -81,8 +106,7 @@ $zipPath = Join-Path $outputRoot "$releaseName.zip"
 if (Test-Path $zipPath) {
   Remove-Item -Force $zipPath
 }
-$zipItems = Get-ChildItem -Force -Path $stagingRoot | ForEach-Object { $_.FullName }
-Compress-Archive -Path $zipItems -DestinationPath $zipPath
+New-ZipFromDirectoryContents -SourceDirectory $stagingRoot -DestinationPath $zipPath
 
 $tarPath = Join-Path $outputRoot "$releaseName.tar.gz"
 if (Test-Path $tarPath) {

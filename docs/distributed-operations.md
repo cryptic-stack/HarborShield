@@ -124,6 +124,18 @@ Use this sequence for remote expansion:
    - the Storage page shows `Local drain complete`
    - at least one healthy node remains `active`
 
+### Last active node safeguard
+
+HarborShield now blocks an operator from moving the last healthy `active` node to `draining` or `maintenance` while local drain is still incomplete.
+
+What this means in practice:
+
+- the `Storage` page disables those state changes ahead of time
+- the admin API also rejects the change with a conflict response
+- the safeguard clears automatically once pending local objects reach `0`
+
+This protects the cluster from stranding local-only data while there is no healthy active distributed target left for continued migration.
+
 ## Rollback expectations
 
 Current beta behavior:

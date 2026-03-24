@@ -311,6 +311,13 @@ func (s *Service) activePlacementEndpoints(ctx context.Context) ([]string, error
 	if len(endpoints) > 0 {
 		return endpoints, nil
 	}
+	var totalNodes int
+	if err := s.db.QueryRow(ctx, `SELECT COUNT(*) FROM storage_nodes`).Scan(&totalNodes); err != nil {
+		return nil, err
+	}
+	if totalNodes > 0 {
+		return []string{}, nil
+	}
 	return append([]string(nil), s.placementEndpoints...), nil
 }
 

@@ -54,6 +54,7 @@ Optional distributed storage is available as a beta path through `STORAGE_BACKEN
 - Day-2 operation and admin workflows: [`docs/operations.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\operations.md)
 - Distributed node admission and live migration workflow: [`docs/distributed-operations.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\distributed-operations.md)
   - includes the supported `Local drain complete` readiness signal for distributed migration
+- `v1.0` GA scope decision: [`docs/v1-scope.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\v1-scope.md)
 - First-run release walkthrough checklist: [`docs/first-run-checklist.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\first-run-checklist.md)
 - Deployment details and secret handling: [`docs/deployment.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\deployment.md)
 - Backup and restore runbook: [`docs/backup-restore.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\backup-restore.md)

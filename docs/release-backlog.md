@@ -351,12 +351,11 @@ Release only if all are true:
 
 Start here:
 
-1. `REL-102` signed `v1.0` scope note
-2. `REL-103` signed S3 compatibility contract
-3. `REL-104` final operator-manageability sweep
-4. decide whether `v0.1.0-rc4` is the final candidate or whether one last prerelease is needed to carry scope-signoff docs
+1. `REL-103` signed S3 compatibility contract
+2. `REL-104` final operator-manageability sweep
+3. decide whether `v0.1.0-rc4` is the final candidate or whether one last prerelease is needed to carry final sign-off docs
 
-These are now the highest-leverage items because install, recovery, and distributed prerelease evidence already exist.
+These are now the highest-leverage items because install, recovery, distributed prerelease evidence, and GA scope sign-off already exist.
 
 ## Current Execution Entry Point
 

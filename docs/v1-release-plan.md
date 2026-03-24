@@ -36,28 +36,17 @@ That means the path to `v1.0` is now mostly about release decision clarity, not 
 
 The remaining `v1.0` choice is now operational rather than architectural:
 
-- decide whether `v0.1.0-rc4` is the final release candidate
-- or cut one more prerelease if you want the signed `v1.0` decision documents bundled into a fresh tagged artifact
+- execute the final `v1.0.0` tag and publish flow successfully
 
 ## Recommended Path
 
-### Step 1: Decide whether a final prerelease is needed
+### Step 1: Cut the release
 
-Use this rule:
-
-- keep `rc4` if the current evidence set is sufficient for your release call
-- cut one more `rc` only if you want the freshly signed `v1.0` docs attached to a new tagged artifact
-
-### Step 2: Cut the release
-
-Only cut another prerelease if the scope or compatibility docs change materially enough that you want a fresh tagged artifact to match them.
-
-Otherwise, `rc4` can remain the release-candidate evidence base for the `v1.0` decision.
+Use the existing `rc4` runtime evidence plus the signed `v1.0` documents as the basis for the final GA tag.
 
 ## Suggested Execution Order
 
-1. decide whether a final `rc` tag is needed
-2. cut `v1.0.0`
+1. cut `v1.0.0`
 
 ## Not Required For v1
 

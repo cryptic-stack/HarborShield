@@ -69,8 +69,8 @@ Optional distributed storage is available as a beta path through `STORAGE_BACKEN
 - S3 compatibility matrix: [`docs/s3-compatibility.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\s3-compatibility.md)
 - Broad-release quality execution backlog: [`docs/release-backlog.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-backlog.md)
 - Release blocker register: [`docs/release-blockers.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-blockers.md)
-- Current prerelease notes: [`docs/release-notes/v0.1.0-rc4.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-notes\v0.1.0-rc4.md)
-- Current release acceptance checklist: [`docs/release-acceptance/v0.1.0-rc4.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-acceptance\v0.1.0-rc4.md)
+- Current release notes: [`docs/release-notes/v1.0.0.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-notes\v1.0.0.md)
+- Current release acceptance record: [`docs/release-acceptance/v1.0.0.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-acceptance\v1.0.0.md)
 
 ## Verification
 

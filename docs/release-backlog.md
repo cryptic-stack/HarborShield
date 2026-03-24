@@ -8,7 +8,7 @@ Current recommendation:
 - `distributed`: keep as `beta` until its own operational gate is fully passed
 - track current go or no-go blockers in [`release-blockers.md`](./release-blockers.md)
 - track the end-goal release path in [`v1-release-plan.md`](./v1-release-plan.md)
-- track prerelease evidence and operator-facing notes in [`release-notes/v0.1.0-rc4.md`](./release-notes/v0.1.0-rc4.md)
+- track current release evidence and operator-facing notes in [`release-notes/v1.0.0.md`](./release-notes/v1.0.0.md)
 
 ## Release Objectives
 
@@ -351,7 +351,7 @@ Release only if all are true:
 
 Start here:
 
-1. decide whether `v0.1.0-rc4` is the final candidate or whether one last prerelease is needed to carry final sign-off docs
+1. execute the final `v1.0.0` tag and publish flow
 
 These are now the highest-leverage items because install, recovery, distributed prerelease evidence, GA scope sign-off, the signed S3 contract, and the operator-manageability sweep already exist.
 

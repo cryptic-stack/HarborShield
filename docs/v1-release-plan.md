@@ -32,33 +32,23 @@ HarborShield already has:
 
 That means the path to `v1.0` is now mostly about release decision clarity, not raw feature volume.
 
-## Remaining v1 Blockers
+## Remaining v1 Decision
 
-These are the remaining release-decision items:
+The remaining `v1.0` choice is now operational rather than architectural:
 
-1. Complete the final operator-manageability sweep.
-   Confirm there are no important runtime behaviors that still require env editing or hidden knowledge when they should be controllable or clearly documented.
+- decide whether `v0.1.0-rc4` is the final release candidate
+- or cut one more prerelease if you want the signed `v1.0` decision documents bundled into a fresh tagged artifact
 
 ## Recommended Path
 
-### Step 1: Run the final operator sweep
+### Step 1: Decide whether a final prerelease is needed
 
-Do one deliberate pass across:
+Use this rule:
 
-- setup
-- settings
-- storage
-- quotas
-- malware
-- auth and OIDC
-- recovery guidance
+- keep `rc4` if the current evidence set is sufficient for your release call
+- cut one more `rc` only if you want the freshly signed `v1.0` docs attached to a new tagged artifact
 
-Success looks like:
-
-- any remaining runtime-only knobs are either surfaced, intentionally documented, or declared out of scope
-- blocker `REL-104` can close or be explicitly accepted
-
-### Step 4: Cut the final prerelease if needed
+### Step 2: Cut the release
 
 Only cut another prerelease if the scope or compatibility docs change materially enough that you want a fresh tagged artifact to match them.
 
@@ -66,9 +56,8 @@ Otherwise, `rc4` can remain the release-candidate evidence base for the `v1.0` d
 
 ## Suggested Execution Order
 
-1. close or accept `REL-104`
-2. decide whether a final `rc` tag is needed
-3. cut `v1.0.0`
+1. decide whether a final `rc` tag is needed
+2. cut `v1.0.0`
 
 ## Not Required For v1
 
@@ -87,6 +76,6 @@ HarborShield is ready for a `v1.0.0` decision when:
 - the blocker register shows no open `critical` items
 - the GA scope note is published
 - the S3 contract is signed off
-- the remaining operator sweep is closed or consciously accepted
+- the operator-manageability sweep is closed
 
 At that point, success is not “more work happened.” Success is that the release promise is clear, support levels are honest, and the repo contains enough evidence for an external operator to trust the result.

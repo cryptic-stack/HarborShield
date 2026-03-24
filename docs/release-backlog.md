@@ -351,10 +351,9 @@ Release only if all are true:
 
 Start here:
 
-1. `REL-104` final operator-manageability sweep
-2. decide whether `v0.1.0-rc4` is the final candidate or whether one last prerelease is needed to carry final sign-off docs
+1. decide whether `v0.1.0-rc4` is the final candidate or whether one last prerelease is needed to carry final sign-off docs
 
-These are now the highest-leverage items because install, recovery, distributed prerelease evidence, GA scope sign-off, and the signed S3 contract already exist.
+These are now the highest-leverage items because install, recovery, distributed prerelease evidence, GA scope sign-off, the signed S3 contract, and the operator-manageability sweep already exist.
 
 ## Current Execution Entry Point
 

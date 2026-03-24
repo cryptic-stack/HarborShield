@@ -7,6 +7,7 @@ Current recommendation:
 - `single-node`: target for broad release quality and `v1.0 GA`
 - `distributed`: keep as `beta` until its own operational gate is fully passed
 - track current go or no-go blockers in [`release-blockers.md`](./release-blockers.md)
+- track the end-goal release path in [`v1-release-plan.md`](./v1-release-plan.md)
 - track prerelease evidence and operator-facing notes in [`release-notes/v0.1.0-rc4.md`](./release-notes/v0.1.0-rc4.md)
 
 ## Release Objectives
@@ -350,13 +351,12 @@ Release only if all are true:
 
 Start here:
 
-1. `REL-001` clean install smoke suite
-2. `REL-003` backup and restore runbook
-3. `SEC-001` secret rotation runbooks
-4. `S3-001` published compatibility matrix
-5. `UX-001` first-run walkthrough fix list
+1. `REL-102` signed `v1.0` scope note
+2. `REL-103` signed S3 compatibility contract
+3. `REL-104` final operator-manageability sweep
+4. decide whether `v0.1.0-rc4` is the final candidate or whether one last prerelease is needed to carry scope-signoff docs
 
-These are the highest-leverage items for turning HarborShield from a strong project into a broad-release-quality platform.
+These are now the highest-leverage items because install, recovery, and distributed prerelease evidence already exist.
 
 ## Current Execution Entry Point
 

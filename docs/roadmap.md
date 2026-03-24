@@ -18,6 +18,7 @@
 ## Release Quality Track
 
 - broad-release execution backlog: [`release-backlog.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\release-backlog.md)
+- end-goal release decision path: [`v1-release-plan.md`](c:\Users\JBrown\Documents\Project\s3-platform\docs\v1-release-plan.md)
 - target `single-node` for `v1.0 GA`
 - keep `distributed` as beta until distributed reliability and operations gates are passed
 

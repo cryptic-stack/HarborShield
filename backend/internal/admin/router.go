@@ -1325,29 +1325,21 @@ func Mount(r chi.Router, deps RouterDeps) {
 					return
 				}
 				requestedState := strings.ToLower(strings.TrimSpace(body.OperatorState))
-				if currentNode.OperatorState == "active" && requestedState != "active" && currentNode.Status == "healthy" {
-					activeHealthyNodes := 0
-					for _, node := range nodes {
-						if node.OperatorState == "active" && node.Status == "healthy" {
-							activeHealthyNodes++
-						}
+				if shouldBlockNodeStateChange(currentNode, requestedState, nodes) {
+					status, statusErr := deps.Objects.MigrationStatus(req.Context())
+					if statusErr != nil {
+						middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": statusErr.Error()})
+						return
 					}
-					if activeHealthyNodes <= 1 {
-						status, statusErr := deps.Objects.MigrationStatus(req.Context())
-						if statusErr != nil {
-							middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": statusErr.Error()})
-							return
-						}
-						if status.PendingLocalObjects > 0 {
-							middleware.WriteJSON(w, http.StatusConflict, map[string]string{
-								"error": fmt.Sprintf(
-									"cannot move the last healthy active node out of service while %d local objects (%d bytes) are still waiting for migration",
-									status.PendingLocalObjects,
-									status.PendingLocalBytes,
-								),
-							})
-							return
-						}
+					if status.PendingLocalObjects > 0 {
+						middleware.WriteJSON(w, http.StatusConflict, map[string]string{
+							"error": fmt.Sprintf(
+								"cannot move the last healthy active node out of service while %d local objects (%d bytes) are still waiting for migration",
+								status.PendingLocalObjects,
+								status.PendingLocalBytes,
+							),
+						})
+						return
 					}
 				}
 				item, err := deps.StorageTopology.UpdateNodeOperatorState(req.Context(), chi.URLParam(req, "nodeID"), body.OperatorState)
@@ -2079,6 +2071,19 @@ func findStorageNode(items []storage.Node, nodeID string) *storage.Node {
 		}
 	}
 	return nil
+}
+
+func shouldBlockNodeStateChange(currentNode *storage.Node, requestedState string, nodes []storage.Node) bool {
+	if currentNode == nil || currentNode.OperatorState != "active" || currentNode.Status != "healthy" || requestedState == "active" {
+		return false
+	}
+	activeHealthyNodes := 0
+	for _, node := range nodes {
+		if node.OperatorState == "active" && node.Status == "healthy" {
+			activeHealthyNodes++
+		}
+	}
+	return activeHealthyNodes <= 1
 }
 
 func authorize(w http.ResponseWriter, req *http.Request, authorizer *authz.Authorizer, action, resource string) bool {

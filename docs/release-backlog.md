@@ -7,7 +7,7 @@ Current recommendation:
 - `single-node`: target for broad release quality and `v1.0 GA`
 - `distributed`: keep as `beta` until its own operational gate is fully passed
 - track current go or no-go blockers in [`release-blockers.md`](./release-blockers.md)
-- track prerelease evidence and operator-facing notes in [`release-notes/v0.1.0-rc1.md`](./release-notes/v0.1.0-rc1.md)
+- track prerelease evidence and operator-facing notes in [`release-notes/v0.1.0-rc4.md`](./release-notes/v0.1.0-rc4.md)
 
 ## Release Objectives
 

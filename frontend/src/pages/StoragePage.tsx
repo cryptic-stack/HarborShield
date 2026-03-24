@@ -81,6 +81,7 @@ export function StoragePage() {
   const [newNodeName, setNewNodeName] = useState("");
   const [newNodeEndpoint, setNewNodeEndpoint] = useState("");
   const [newNodeZone, setNewNodeZone] = useState("");
+  const healthyActiveNodes = nodes.filter((node) => node.operatorState === "active" && node.status === "healthy").length;
 
   const load = () => {
     const placementQuery = keyFilter.trim() ? `/storage/placements?limit=20&key=${encodeURIComponent(keyFilter.trim())}` : "/storage/placements?limit=20";
@@ -242,6 +243,12 @@ export function StoragePage() {
                   migrationStatus?.pendingLocalBytes ?? 0,
                 )}) still need migration before local storage is fully drained.`}
           </div>
+          {healthyActiveNodes <= 1 && (migrationStatus?.pendingLocalObjects ?? 0) > 0 ? (
+            <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              Keep at least one healthy active node available until local drain is complete. HarborShield now blocks demoting the last healthy active node while{" "}
+              {migrationStatus?.pendingLocalObjects ?? 0} local objects still need migration.
+            </div>
+          ) : null}
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <PolicyCard title="Pending Local Objects" value={String(migrationStatus?.pendingLocalObjects ?? 0)} />
             <PolicyCard title="Pending Local Bytes" value={formatBytes(migrationStatus?.pendingLocalBytes ?? 0)} />
@@ -369,7 +376,7 @@ export function StoragePage() {
                         key={state}
                         type="button"
                         onClick={() => void updateNodeState(node.id, state)}
-                        disabled={updatingNodeId === node.id || node.operatorState === state}
+                        disabled={updatingNodeId === node.id || node.operatorState === state || isBlockedNodeStateChange(node, state, healthyActiveNodes, migrationStatus)}
                         className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                           node.operatorState === state
                             ? "bg-slate-900 text-white"
@@ -484,6 +491,16 @@ function canRepinTLSIdentity(metadata?: Record<string, unknown>) {
 
 function isLocalDrainComplete(nodes: StorageNode[], migrationStatus: MigrationStatus | null) {
   return (migrationStatus?.pendingLocalObjects ?? 0) === 0 && nodes.some((node) => node.operatorState === "active" && node.status === "healthy");
+}
+
+function isBlockedNodeStateChange(node: StorageNode, nextState: string, healthyActiveNodes: number, migrationStatus: MigrationStatus | null) {
+  return (
+    node.operatorState === "active" &&
+    node.status === "healthy" &&
+    nextState !== "active" &&
+    healthyActiveNodes <= 1 &&
+    (migrationStatus?.pendingLocalObjects ?? 0) > 0
+  );
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {

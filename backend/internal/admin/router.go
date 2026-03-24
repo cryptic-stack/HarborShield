@@ -1314,6 +1314,42 @@ func Mount(r chi.Router, deps RouterDeps) {
 					middleware.WriteJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 					return
 				}
+				nodes, err := deps.StorageTopology.ListNodes(req.Context())
+				if err != nil {
+					middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+					return
+				}
+				currentNode := findStorageNode(nodes, chi.URLParam(req, "nodeID"))
+				if currentNode == nil {
+					middleware.WriteJSON(w, http.StatusNotFound, map[string]string{"error": "storage node not found"})
+					return
+				}
+				requestedState := strings.ToLower(strings.TrimSpace(body.OperatorState))
+				if currentNode.OperatorState == "active" && requestedState != "active" && currentNode.Status == "healthy" {
+					activeHealthyNodes := 0
+					for _, node := range nodes {
+						if node.OperatorState == "active" && node.Status == "healthy" {
+							activeHealthyNodes++
+						}
+					}
+					if activeHealthyNodes <= 1 {
+						status, statusErr := deps.Objects.MigrationStatus(req.Context())
+						if statusErr != nil {
+							middleware.WriteJSON(w, http.StatusInternalServerError, map[string]string{"error": statusErr.Error()})
+							return
+						}
+						if status.PendingLocalObjects > 0 {
+							middleware.WriteJSON(w, http.StatusConflict, map[string]string{
+								"error": fmt.Sprintf(
+									"cannot move the last healthy active node out of service while %d local objects (%d bytes) are still waiting for migration",
+									status.PendingLocalObjects,
+									status.PendingLocalBytes,
+								),
+							})
+							return
+						}
+					}
+				}
 				item, err := deps.StorageTopology.UpdateNodeOperatorState(req.Context(), chi.URLParam(req, "nodeID"), body.OperatorState)
 				if err != nil {
 					status := http.StatusInternalServerError
@@ -2030,6 +2066,16 @@ func findCredential(items []map[string]any, accessKey string) map[string]any {
 	for _, item := range items {
 		if key, _ := item["accessKey"].(string); key == accessKey {
 			return item
+		}
+	}
+	return nil
+}
+
+func findStorageNode(items []storage.Node, nodeID string) *storage.Node {
+	for _, item := range items {
+		if item.ID == nodeID {
+			node := item
+			return &node
 		}
 	}
 	return nil

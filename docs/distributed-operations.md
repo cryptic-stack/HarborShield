@@ -90,7 +90,9 @@ This is the key day-2 workflow when the stack started in distributed mode but ex
 2. open `Storage`
 3. review:
    - `Pending Local Objects`
+   - `Pending Local Bytes`
    - `Distributed Objects`
+   - `Distributed Bytes`
    - recent migration history
 4. use `Migrate 100 Local Objects`
 5. repeat until `Pending Local Objects` reaches `0`
@@ -98,10 +100,13 @@ This is the key day-2 workflow when the stack started in distributed mode but ex
 ### What success looks like
 
 - pending local count trends downward
+- pending local bytes trend downward
 - distributed object count trends upward
+- distributed bytes trend upward
 - new migration history entries appear
 - migrated objects still read back successfully
 - placement records appear for migrated objects
+- the Storage page shows `Local drain complete`
 
 ## Safe operating pattern
 
@@ -113,7 +118,11 @@ Use this sequence for remote expansion:
 4. confirm health and placement posture
 5. migrate older local objects in batches
 6. keep watching degraded placement and rebalance-gap signals
-7. only consider local storage drained when `Pending Local Objects` reaches `0`
+7. only consider local storage drained when:
+   - `Pending Local Objects` is `0`
+   - `Pending Local Bytes` is `0 B`
+   - the Storage page shows `Local drain complete`
+   - at least one healthy node remains `active`
 
 ## Rollback expectations
 
@@ -160,5 +169,7 @@ This smoke:
 - promotes nodes live
 - runs local-to-distributed migration
 - verifies placement records and readback
+
+The GitHub-hosted release-validation workflow now runs this smoke successfully as part of the distributed beta lane, so regressions in this path should show up before release.
 
 Because it changes node operator state and leaves a uniquely named test bucket behind, treat it as a lab or prerelease validation helper rather than a production day-2 command.

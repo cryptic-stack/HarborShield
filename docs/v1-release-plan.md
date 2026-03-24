@@ -36,25 +36,12 @@ That means the path to `v1.0` is now mostly about release decision clarity, not 
 
 These are the remaining release-decision items:
 
-1. Sign off the S3 compatibility contract.
-   The compatibility matrix exists, but it still needs to become the official release promise.
-
-2. Complete the final operator-manageability sweep.
+1. Complete the final operator-manageability sweep.
    Confirm there are no important runtime behaviors that still require env editing or hidden knowledge when they should be controllable or clearly documented.
 
 ## Recommended Path
 
-### Step 1: Freeze the S3 promise
-
-Promote the compatibility matrix into a signed release contract.
-
-Success looks like:
-
-- the supported S3 behavior is explicit
-- partial or unsupported behavior is listed plainly
-- blocker `REL-103` can close
-
-### Step 2: Run the final operator sweep
+### Step 1: Run the final operator sweep
 
 Do one deliberate pass across:
 
@@ -79,10 +66,9 @@ Otherwise, `rc4` can remain the release-candidate evidence base for the `v1.0` d
 
 ## Suggested Execution Order
 
-1. close `REL-103`
-2. close or accept `REL-104`
-3. decide whether a final `rc` tag is needed
-4. cut `v1.0.0`
+1. close or accept `REL-104`
+2. decide whether a final `rc` tag is needed
+3. cut `v1.0.0`
 
 ## Not Required For v1
 

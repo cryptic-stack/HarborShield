@@ -46,7 +46,9 @@ type DashboardSummary = {
 
 type MigrationStatus = {
   pendingLocalObjects: number;
+  pendingLocalBytes: number;
   distributedObjects: number;
+  distributedBytes: number;
 };
 
 type MigrationHistoryItem = {
@@ -57,7 +59,9 @@ type MigrationHistoryItem = {
   detail?: {
     migratedCount?: number;
     pendingLocalObjects?: number;
+    pendingLocalBytes?: number;
     distributedObjects?: number;
+    distributedBytes?: number;
   };
 };
 
@@ -165,13 +169,16 @@ export function StoragePage() {
     setError("");
     setNotice("");
     try {
-      const result = await api<{ migratedCount: number; pendingLocalObjects: number; distributedObjects: number }>("/storage/migrations/local-to-distributed", {
+      const result = await api<{ migratedCount: number; pendingLocalObjects: number; pendingLocalBytes: number; distributedObjects: number; distributedBytes: number }>(
+        "/storage/migrations/local-to-distributed",
+        {
         method: "POST",
         body: JSON.stringify({ limit: 100 }),
-      });
+        },
+      );
       setNotice(
         result.migratedCount > 0
-          ? `Migrated ${result.migratedCount} objects. ${result.pendingLocalObjects} local objects remain.`
+          ? `Migrated ${result.migratedCount} objects. ${result.pendingLocalObjects} local objects remain (${formatBytes(result.pendingLocalBytes)} still on local storage).`
           : "No local objects were migrated in this pass.",
       );
       await load();
@@ -222,9 +229,24 @@ export function StoragePage() {
               {migrating ? "Migrating..." : "Migrate 100 Local Objects"}
             </button>
           </div>
+          <div
+            className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
+              isLocalDrainComplete(nodes, migrationStatus)
+                ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                : "border-amber-200 bg-amber-50 text-amber-800"
+            }`}
+          >
+            {isLocalDrainComplete(nodes, migrationStatus)
+              ? "Local drain complete. New writes can use the active distributed node set, and there are no remaining local objects waiting for migration."
+              : `Local drain still in progress. ${migrationStatus?.pendingLocalObjects ?? 0} objects (${formatBytes(
+                  migrationStatus?.pendingLocalBytes ?? 0,
+                )}) still need migration before local storage is fully drained.`}
+          </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             <PolicyCard title="Pending Local Objects" value={String(migrationStatus?.pendingLocalObjects ?? 0)} />
+            <PolicyCard title="Pending Local Bytes" value={formatBytes(migrationStatus?.pendingLocalBytes ?? 0)} />
             <PolicyCard title="Distributed Objects" value={String(migrationStatus?.distributedObjects ?? 0)} />
+            <PolicyCard title="Distributed Bytes" value={formatBytes(migrationStatus?.distributedBytes ?? 0)} />
           </div>
           <div className="mt-4 space-y-3">
             <h4 className="text-sm font-semibold text-ink">Recent Migration Runs</h4>
@@ -235,7 +257,8 @@ export function StoragePage() {
                     {item.detail?.migratedCount ?? 0} objects migrated by {item.actor || "operator"}
                   </div>
                   <div className="mt-1">
-                    {new Date(item.createdAt).toLocaleString()} | remaining local objects: {item.detail?.pendingLocalObjects ?? 0}
+                    {new Date(item.createdAt).toLocaleString()} | remaining local objects: {item.detail?.pendingLocalObjects ?? 0} (
+                    {formatBytes(item.detail?.pendingLocalBytes ?? 0)})
                   </div>
                 </div>
               ))
@@ -457,6 +480,10 @@ function formatTLSIdentity(metadata?: Record<string, unknown>) {
 
 function canRepinTLSIdentity(metadata?: Record<string, unknown>) {
   return typeof metadata?.tlsObservedFingerprintSha256 === "string" && metadata.tlsObservedFingerprintSha256.length > 0;
+}
+
+function isLocalDrainComplete(nodes: StorageNode[], migrationStatus: MigrationStatus | null) {
+  return (migrationStatus?.pendingLocalObjects ?? 0) === 0 && nodes.some((node) => node.operatorState === "active" && node.status === "healthy");
 }
 
 function MetricCard({ label, value }: { label: string; value: string }) {

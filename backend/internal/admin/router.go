@@ -1401,13 +1401,17 @@ func Mount(r chi.Router, deps RouterDeps) {
 					Detail: map[string]any{
 						"migratedCount":       migrated,
 						"pendingLocalObjects": status.PendingLocalObjects,
+						"pendingLocalBytes":   status.PendingLocalBytes,
 						"distributedObjects":  status.DistributedObjects,
+						"distributedBytes":    status.DistributedBytes,
 					},
 				})
 				middleware.WriteJSON(w, http.StatusOK, map[string]any{
 					"migratedCount":       migrated,
 					"pendingLocalObjects": status.PendingLocalObjects,
+					"pendingLocalBytes":   status.PendingLocalBytes,
 					"distributedObjects":  status.DistributedObjects,
+					"distributedBytes":    status.DistributedBytes,
 				})
 			})
 

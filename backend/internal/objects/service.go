@@ -80,7 +80,9 @@ type Service struct {
 
 type MigrationStatus struct {
 	PendingLocalObjects int64 `json:"pendingLocalObjects"`
+	PendingLocalBytes   int64 `json:"pendingLocalBytes"`
 	DistributedObjects  int64 `json:"distributedObjects"`
+	DistributedBytes    int64 `json:"distributedBytes"`
 }
 
 func New(db *pgxpool.Pool, localStore storage.BlobStore, distributedStore *storage.DistributedStore, tenant string, quotaService *quotas.Service, storageBackend string, placementEndpoints []string, placementReplicas int, defaultStorageClass string, settingsSvc *settings.Service) *Service {
@@ -703,9 +705,11 @@ func (s *Service) MigrationStatus(ctx context.Context) (MigrationStatus, error) 
 	err := s.db.QueryRow(ctx, `
 		SELECT
 			COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') <> 'distributed'),
-			COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') = 'distributed')
+			COALESCE(SUM(size_bytes) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') <> 'distributed'), 0),
+			COUNT(*) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') = 'distributed'),
+			COALESCE(SUM(size_bytes) FILTER (WHERE deleted_at IS NULL AND is_delete_marker = FALSE AND storage_path <> '' AND COALESCE(storage_backend, 'filesystem') = 'distributed'), 0)
 		FROM objects
-	`).Scan(&status.PendingLocalObjects, &status.DistributedObjects)
+	`).Scan(&status.PendingLocalObjects, &status.PendingLocalBytes, &status.DistributedObjects, &status.DistributedBytes)
 	return status, err
 }
 
